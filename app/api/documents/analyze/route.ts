@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
 
     const base64 = buffer.toString('base64');
 
-    // Step 1: Google Vision API で日本語OCR（テキスト抽出）
-    const ocr = await visionOcr(base64);
+    // Step 1: Google Vision API で日本語OCR（PDF/画像とも対応）
+    const ocr = await visionOcr(base64, doc.file_mime);
 
     // Step 2: Claude で OCR テキストを構造化JSONへ整形
     const result = await runExtractor(doc.doc_type, ocr.text);

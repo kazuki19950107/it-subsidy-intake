@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Camera, Upload, Loader2, FileImage, Trash2, RotateCw, Check, AlertCircle, CloudUpload } from 'lucide-react';
+import { Camera, Upload, Loader2, FileImage, Trash2, RotateCw, Check, AlertCircle, CloudUpload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -91,27 +91,10 @@ export function DocumentUploader({
       setError(null);
 
       try {
-        // PDF は事前にクライアント側で PNG に変換する。
-        // Claude へ document ブロックで投げると正しく抽出できないことがあるため、
-        // 1ページずつ画像化してから通常の画像アップロードフローに乗せる。
-        const expanded: File[] = [];
-        for (const f of Array.from(files)) {
-          if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
-            const { pdfToPngPagesClient } = await import('@/lib/pdf/pdfToImage');
-            const pages = await pdfToPngPagesClient(f);
-            const baseName = f.name.replace(/\.pdf$/i, '');
-            pages.forEach((blob, idx) => {
-              const name =
-                pages.length === 1 ? `${baseName}.jpg` : `${baseName}_p${idx + 1}.jpg`;
-              expanded.push(new File([blob], name, { type: 'image/jpeg' }));
-            });
-          } else {
-            expanded.push(f);
-          }
-        }
-
+        // PDF も画像もそのままアップロードする。
+        // サーバー側で Google Vision API が PDF を直接 OCR する（files:annotate）。
         const newDocs: UploadedDoc[] = [...docs];
-        for (const file of expanded) {
+        for (const file of Array.from(files)) {
           if (file.size > 20 * 1024 * 1024) {
             throw new Error(`${file.name}: ファイルサイズが20MBを超えています`);
           }
@@ -204,6 +187,26 @@ export function DocumentUploader({
     },
     [applicationId, docType, docs],
   );
+
+  const handleDownload = async (docId: string, fileName: string) => {
+    try {
+      const res = await fetch(`/api/documents/${docId}/signed-url`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const { url } = await res.json();
+      // 別タブで開いてブラウザのダウンロード機構に任せる（Content-Disposition で download 強制済）
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      alert(`ダウンロードに失敗しました: ${(e as Error).message}`);
+    }
+  };
 
   const handleDelete = async (docId: string) => {
     if (!confirm('この書類を削除しますか？')) return;
@@ -364,6 +367,14 @@ export function DocumentUploader({
                         再解析
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDownload(d.id, d.file_name)}
+                      aria-label="ダウンロード"
+                    >
+                      <Download className="w-4 h-4 text-mute" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileImage, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FileImage, Loader2, Download } from 'lucide-react';
 import { ValidationList } from '@/components/upload/ValidationBadge';
 import type { Document } from '@/lib/supabase/types';
 import { DOC_TYPE_LABELS } from '@/lib/claude/docTypes';
@@ -15,6 +16,7 @@ type Props = {
 
 export function DocumentViewer({ doc }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,7 +24,9 @@ export function DocumentViewer({ doc }: Props) {
     fetch(`/api/admin/documents/${doc.id}/signed-url`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled) setSignedUrl(d.url ?? null);
+        if (cancelled) return;
+        setSignedUrl(d.url ?? null);
+        setDownloadUrl(d.download_url ?? d.url ?? null);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -37,14 +41,24 @@ export function DocumentViewer({ doc }: Props) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileImage className="w-4 h-4" />
-            {DOC_TYPE_LABELS[doc.doc_type]}
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base flex items-center gap-2 min-w-0">
+            <FileImage className="w-4 h-4 shrink-0" />
+            <span className="truncate">{DOC_TYPE_LABELS[doc.doc_type]}</span>
           </CardTitle>
-          <Badge variant={doc.ocr_status === 'done' ? 'success' : 'muted'}>
-            {doc.ocr_status === 'done' ? '解析済' : doc.ocr_status}
-          </Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant={doc.ocr_status === 'done' ? 'success' : 'muted'}>
+              {doc.ocr_status === 'done' ? '解析済' : doc.ocr_status}
+            </Badge>
+            {downloadUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a href={downloadUrl} download={doc.file_name}>
+                  <Download className="w-3 h-3" />
+                  ダウンロード
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
