@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 97%;
+    --foreground: 0 0% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 16%;
+    --primary: 176 42% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 176 30% 93%;
+    --secondary-foreground: 176 42% 23%;
+    --muted: 36 20% 95%;
+    --muted-foreground: 0 0% 42%;
+    --destructive: 6 60% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 36 15% 81%;
+    --input: 36 15% 81%;
+    --ring: 176 42% 30%;
+    --radius: 0.375rem;
+  }
+
+  * {
+    @apply border-rule;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-feature-settings: 'palt';
+    line-height: 1.7;
+  }
+
+  /* モバイルで意図しないズーム防止 */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
