@@ -30,9 +30,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     applicantName: app?.applicant_name ?? null,
   });
 
+  // download パラメータは付けない（日本語ファイル名が %エンコード化されるため）。
+  // クライアント側で blob → a.download で日本語名を付与する。
   const { data: signed, error: sErr } = await supabase.storage
     .from('documents')
-    .createSignedUrl(doc.storage_path, 600, { download: downloadName });
+    .createSignedUrl(doc.storage_path, 600);
   if (sErr || !signed) {
     return NextResponse.json({ error: sErr?.message ?? 'signed url 発行失敗' }, { status: 500 });
   }

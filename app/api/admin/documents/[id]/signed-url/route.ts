@@ -28,22 +28,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     applicantName: app?.applicant_name ?? null,
   });
 
-  // プレビュー用 (inline) とダウンロード用 (download) の両方を返す
-  const [previewRes, downloadRes] = await Promise.all([
-    supabase.storage.from('documents').createSignedUrl(doc.storage_path, 600),
-    supabase.storage
-      .from('documents')
-      .createSignedUrl(doc.storage_path, 600, { download: downloadName }),
-  ]);
-  if (previewRes.error || !previewRes.data) {
-    return NextResponse.json(
-      { error: previewRes.error?.message ?? 'signed url 発行失敗' },
-      { status: 500 },
-    );
+  // signed URL は inline 用に1本だけ。ダウンロードはクライアント側で
+  // fetch → blob → objectURL の流れで行い、a.download に日本語ファイル名を
+  // 直接渡す（Supabase の download パラメータは UTF-8 を扱えず %E5%... 化する）。
+  const { data: signed, error: sErr } = await supabase.storage
+    .from('documents')
+    .createSignedUrl(doc.storage_path, 600);
+  if (sErr || !signed) {
+    return NextResponse.json({ error: sErr?.message ?? 'signed url 発行失敗' }, { status: 500 });
   }
   return NextResponse.json({
-    url: previewRes.data.signedUrl,
-    download_url: downloadRes.data?.signedUrl ?? previewRes.data.signedUrl,
+    url: signed.signedUrl,
+    download_url: signed.signedUrl,
     file_name: downloadName,
   });
 }

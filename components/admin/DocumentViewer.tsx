@@ -16,7 +16,7 @@ type Props = {
 
 export function DocumentViewer({ doc }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [downloadName, setDownloadName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,13 +26,32 @@ export function DocumentViewer({ doc }: Props) {
       .then((d) => {
         if (cancelled) return;
         setSignedUrl(d.url ?? null);
-        setDownloadUrl(d.download_url ?? d.url ?? null);
+        setDownloadName(d.file_name ?? null);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
   }, [doc.id]);
+
+  const handleDownload = async () => {
+    if (!signedUrl) return;
+    try {
+      const res = await fetch(signedUrl);
+      if (!res.ok) throw new Error(`ファイル取得失敗 HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = downloadName ?? doc.file_name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 0);
+    } catch (e) {
+      alert(`ダウンロードに失敗しました: ${(e as Error).message}`);
+    }
+  };
 
   const result = (doc.user_corrected ?? doc.ocr_result) as Record<string, unknown> | null;
   const validationErrors = (doc.validation_errors ?? []) as unknown as CrossCheckResult[];
@@ -50,12 +69,10 @@ export function DocumentViewer({ doc }: Props) {
             <Badge variant={doc.ocr_status === 'done' ? 'success' : 'muted'}>
               {doc.ocr_status === 'done' ? '解析済' : doc.ocr_status}
             </Badge>
-            {downloadUrl && (
-              <Button asChild variant="outline" size="sm">
-                <a href={downloadUrl} download={doc.file_name}>
-                  <Download className="w-3 h-3" />
-                  ダウンロード
-                </a>
+            {signedUrl && (
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="w-3 h-3" />
+                ダウンロード
               </Button>
             )}
           </div>

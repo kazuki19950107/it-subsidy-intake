@@ -196,14 +196,19 @@ export function DocumentUploader({
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
       const { url, file_name } = await res.json();
-      // Content-Disposition でサーバー側生成のファイル名（会社名_書類種別.pdf）が
-      // 適用される。a.download は同一オリジン or CORS なら効く保険。
+      // Supabase 直の URL を a.download で日本語名指定すると CORS 制約で無視されるため、
+      // 一度 fetch して blob URL に変換 → 同一オリジン扱いで a.download が効くようにする。
+      const fileRes = await fetch(url);
+      if (!fileRes.ok) throw new Error(`ファイル取得失敗 HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = objUrl;
       a.download = file_name ?? fallbackName;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 0);
     } catch (e) {
       alert(`ダウンロードに失敗しました: ${(e as Error).message}`);
     }
