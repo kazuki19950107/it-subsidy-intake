@@ -184,6 +184,9 @@ export function StepIndicator({ currentStep, completedSteps = [], token, percent
           <div className="text-xs text-mute">
             ステップ {currentIdx + 1} / {APPLY_STEPS.length} ・ {progressPercent}%
           </div>
+          <div className="text-xs font-semibold text-teal-dark truncate ml-2">
+            {APPLY_STEPS[currentIdx]?.label}
+          </div>
         </div>
         <div className="relative h-1.5 bg-rule rounded-full overflow-hidden mb-3">
           <div
@@ -191,14 +194,58 @@ export function StepIndicator({ currentStep, completedSteps = [], token, percent
             style={{ width: `${progressPercent}%` }}
           />
         </div>
-        <div className="text-center">
-          <div className="text-base font-semibold text-teal-dark">
-            {APPLY_STEPS[currentIdx]?.label}
-          </div>
-          <div className="text-xs text-mute mt-0.5">
-            {APPLY_STEPS[currentIdx]?.description}
-          </div>
-        </div>
+        <ol className="flex items-stretch gap-1 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-thin">
+          {APPLY_STEPS.map((step, idx) => {
+            const status = stepStatus(step.id, currentStep, completedSteps);
+            const isComplete = step.id === 'complete';
+            const completeReached =
+              completedSteps.includes('complete') || currentStep === 'complete';
+            const isClickable =
+              tokenFromPath && (!isComplete || completeReached) && status !== 'current';
+            const href = tokenFromPath ? stepPath(tokenFromPath, step.id) : '#';
+
+            const inner = (
+              <div
+                className={cn(
+                  'flex flex-col items-center justify-center min-w-[68px] h-14 rounded-md border px-2 text-center',
+                  status === 'current' &&
+                    'border-teal bg-teal/10 text-teal-dark',
+                  status === 'completed' &&
+                    'border-teal/40 bg-white text-charcoal',
+                  status === 'upcoming' &&
+                    'border-rule bg-white text-mute',
+                  !isClickable && 'opacity-60',
+                )}
+                {...(status === 'current' ? { 'aria-current': 'step' } : {})}
+              >
+                <span className="flex items-center gap-1 text-[11px] font-semibold leading-none">
+                  {status === 'completed' ? (
+                    <Check className="w-3 h-3" />
+                  ) : (
+                    <span>{idx + 1}</span>
+                  )}
+                </span>
+                <span className="text-[11px] mt-1 leading-tight whitespace-nowrap">
+                  {step.label}
+                </span>
+              </div>
+            );
+
+            return (
+              <li key={step.id} className="shrink-0">
+                {isClickable ? (
+                  <Link href={href} className="block active:opacity-70">
+                    {inner}
+                  </Link>
+                ) : (
+                  <div className={cn(isComplete && !completeReached && 'pointer-events-none')}>
+                    {inner}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
       </div>
     </nav>
   );

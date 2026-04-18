@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Camera, Upload, Loader2, FileImage, Trash2, RotateCw } from 'lucide-react';
+import { Camera, Upload, Loader2, FileImage, Trash2, RotateCw, Check, AlertCircle, CloudUpload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,6 +11,40 @@ import { ValidationBadge, ValidationList } from './ValidationBadge';
 import { ExtractionPreview } from './ExtractionPreview';
 import { ReferenceImageCard } from './ReferenceImageViewer';
 import { DOC_REFERENCE_IMAGES, DOC_SUPPLEMENTARY_IMAGES } from '@/lib/claude/referenceImages';
+import { cn } from '@/lib/utils/cn';
+
+function UploadStatusBanner({ status }: { status: 'pending' | 'analyzing' | 'done' | 'failed' }) {
+  if (status === 'analyzing') {
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-amber-700">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span>解析中... ファイルは保存済みです</span>
+      </div>
+    );
+  }
+  if (status === 'done') {
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-teal-dark">
+        <Check className="w-4 h-4" />
+        <span>保存完了・解析済み</span>
+      </div>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+        <AlertCircle className="w-4 h-4" />
+        <span>解析失敗（ファイルは保存されています）</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold text-mute">
+      <CloudUpload className="w-4 h-4" />
+      <span>アップロード待ち</span>
+    </div>
+  );
+}
 
 type UploadedDoc = {
   id: string;
@@ -265,22 +299,38 @@ export function DocumentUploader({
         {docs.length > 0 && (
           <ul className="space-y-3">
             {docs.map((d) => (
-              <li key={d.id} className="border border-rule rounded-md p-3 bg-off-white">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileImage className="w-4 h-4 shrink-0 text-mute" />
-                    <span className="text-sm font-medium truncate">{d.file_name}</span>
+              <li
+                key={d.id}
+                className={cn(
+                  'border-2 rounded-md p-3 transition-colors',
+                  d.ocr_status === 'done' && 'border-teal/40 bg-teal/5',
+                  d.ocr_status === 'analyzing' && 'border-amber-300 bg-amber-50',
+                  d.ocr_status === 'failed' && 'border-accent/40 bg-accent/5',
+                  d.ocr_status === 'pending' && 'border-rule bg-off-white',
+                )}
+              >
+                <UploadStatusBanner status={d.ocr_status} />
+                <div className="flex items-start justify-between gap-2 mt-2">
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                    {d.previewUrl && d.file_name.match(/\.(png|jpe?g|gif|webp|heic|heif)$/i) ? (
+                      <img
+                        src={d.previewUrl}
+                        alt=""
+                        className="w-12 h-12 object-cover rounded border border-rule shrink-0"
+                      />
+                    ) : (
+                      <FileImage className="w-12 h-12 shrink-0 text-mute p-2 border border-rule rounded bg-white" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{d.file_name}</div>
+                      {d.ocr_status === 'done' && d.validation_errors && (
+                        <div className="mt-1">
+                          <ValidationBadge errors={d.validation_errors ?? []} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {d.ocr_status === 'analyzing' && (
-                      <span className="text-xs text-mute flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        解析中
-                      </span>
-                    )}
-                    {d.ocr_status === 'done' && (
-                      <ValidationBadge errors={d.validation_errors ?? []} />
-                    )}
+                  <div className="flex items-center gap-1 shrink-0">
                     {d.ocr_status === 'failed' && (
                       <Button
                         variant="outline"

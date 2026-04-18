@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, type Path } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Info } from 'lucide-react';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
 
 type Props = {
   token: string;
@@ -29,6 +30,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
     register,
     handleSubmit,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<CommonInfoInput>({
     resolver: zodResolver(commonInfoSchema),
@@ -40,6 +42,32 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
   });
 
   const gbizStatus = watch('gbiz_id_status');
+
+  const { save: autoSave } = useAutoSave<Partial<CommonInfoInput>>({
+    onSave: async (partial) => {
+      const res = await fetch(`/api/applications/${applicationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partial),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? '保存に失敗しました');
+      }
+    },
+  });
+
+  const registerWithAutoSave = (name: Path<CommonInfoInput>, options?: Parameters<typeof register>[1]) => {
+    const r = register(name, options);
+    return {
+      ...r,
+      onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        r.onBlur(e);
+        const value = getValues(name);
+        autoSave({ [name]: value } as Partial<CommonInfoInput>);
+      },
+    };
+  };
 
   const onSubmit = async (data: CommonInfoInput) => {
     setSubmitting(true);
@@ -76,7 +104,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <Label htmlFor="company_name" required>
             会社名（商号）
           </Label>
-          <Input id="company_name" {...register('company_name')} placeholder="株式会社○○" />
+          <Input id="company_name" {...registerWithAutoSave('company_name')} placeholder="株式会社○○" />
           {errors.company_name && (
             <p className="text-sm text-accent">{errors.company_name.message}</p>
           )}
@@ -88,7 +116,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <Label htmlFor="applicant_name" required>
             代表者氏名
           </Label>
-          <Input id="applicant_name" {...register('applicant_name')} placeholder="山田 太郎" />
+          <Input id="applicant_name" {...registerWithAutoSave('applicant_name')} placeholder="山田 太郎" />
           {errors.applicant_name && (
             <p className="text-sm text-accent">{errors.applicant_name.message}</p>
           )}
@@ -97,7 +125,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <Label htmlFor="applicant_kana" required>
             フリガナ
           </Label>
-          <Input id="applicant_kana" {...register('applicant_kana')} placeholder="ヤマダ タロウ" />
+          <Input id="applicant_kana" {...registerWithAutoSave('applicant_kana')} placeholder="ヤマダ タロウ" />
           {errors.applicant_kana && (
             <p className="text-sm text-accent">{errors.applicant_kana.message}</p>
           )}
@@ -112,7 +140,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <Input
             id="phone"
             type="tel"
-            {...register('phone')}
+            {...registerWithAutoSave('phone')}
             placeholder="090-1234-5678"
             inputMode="tel"
           />
@@ -125,7 +153,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <Input
             id="email"
             type="email"
-            {...register('email')}
+            {...registerWithAutoSave('email')}
             placeholder="example@example.com"
             inputMode="email"
           />
@@ -139,7 +167,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
         </Label>
         <Input
           id="line_display_name"
-          {...register('line_display_name')}
+          {...registerWithAutoSave('line_display_name')}
           placeholder="LINEに登録されているお名前"
         />
         <p className="text-xs text-mute">
@@ -157,6 +185,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           onValueChange={(v) => {
             const input = document.getElementById('gbiz_hidden') as HTMLInputElement;
             if (input) input.value = v;
+            autoSave({ gbiz_id_status: v as CommonInfoInput['gbiz_id_status'] });
           }}
         >
           <div className="flex items-start gap-2">
@@ -191,14 +220,14 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           <div className="grid gap-3 md:grid-cols-2 mt-3">
             <div className="space-y-2">
               <Label htmlFor="gbiz_id_date">取得日</Label>
-              <Input id="gbiz_id_date" type="date" {...register('gbiz_id_date')} />
+              <Input id="gbiz_id_date" type="date" {...registerWithAutoSave('gbiz_id_date')} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="gbiz_id_email">登録メールアドレス</Label>
               <Input
                 id="gbiz_id_email"
                 type="email"
-                {...register('gbiz_id_email')}
+                {...registerWithAutoSave('gbiz_id_email')}
                 placeholder="gbiz登録メール"
               />
               {errors.gbiz_id_email && (
@@ -216,7 +245,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
             id="requested_amount"
             type="number"
             inputMode="numeric"
-            {...register('requested_amount', {
+            {...registerWithAutoSave('requested_amount', {
               setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
             })}
             placeholder="例: 500000"
@@ -231,7 +260,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
             id="annual_revenue"
             type="number"
             inputMode="numeric"
-            {...register('annual_revenue', {
+            {...registerWithAutoSave('annual_revenue', {
               setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
             })}
             placeholder="例: 30000000"
@@ -244,7 +273,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
 
       <div className="space-y-2">
         <Label htmlFor="notes">ご相談内容・備考（任意）</Label>
-        <Textarea id="notes" {...register('notes')} rows={4} placeholder="ご質問や特記事項があればご記入ください。" />
+        <Textarea id="notes" {...registerWithAutoSave('notes')} rows={4} placeholder="ご質問や特記事項があればご記入ください。" />
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-rule">

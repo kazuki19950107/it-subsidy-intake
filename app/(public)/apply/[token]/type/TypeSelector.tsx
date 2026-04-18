@@ -6,6 +6,7 @@ import { Building2, UserSquare2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils/cn';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
 
 type Type = 'corporation' | 'sole_proprietor';
 
@@ -19,34 +20,38 @@ export function TypeSelector({ token, applicationId, initial }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Type | null>(initial);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleNext = async () => {
-    if (!selected) return;
-    setSaving(true);
-    setError(null);
-    try {
+  const { save: autoSave } = useAutoSave<{ applicant_type: Type }>({
+    debounceMs: 0,
+    onSave: async ({ applicant_type }) => {
       const res = await fetch(`/api/applications/${applicationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicant_type: selected }),
+        body: JSON.stringify({ applicant_type }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? '保存に失敗しました');
       }
-      router.push(`/apply/${token}/info`);
-    } catch (e) {
-      setError((e as Error).message);
-      setSaving(false);
-    }
+    },
+  });
+
+  const handleSelect = (type: Type) => {
+    setSelected(type);
+    autoSave({ applicant_type: type });
+  };
+
+  const handleNext = () => {
+    if (!selected) return;
+    setSaving(true);
+    router.push(`/apply/${token}/info`);
   };
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         <Card
-          onClick={() => setSelected('corporation')}
+          onClick={() => handleSelect('corporation')}
           className={cn(
             'cursor-pointer p-6 transition-all hover:border-teal',
             selected === 'corporation' && 'ring-2 ring-teal bg-teal-light/30',
@@ -62,7 +67,7 @@ export function TypeSelector({ token, applicationId, initial }: Props) {
         </Card>
 
         <Card
-          onClick={() => setSelected('sole_proprietor')}
+          onClick={() => handleSelect('sole_proprietor')}
           className={cn(
             'cursor-pointer p-6 transition-all hover:border-teal',
             selected === 'sole_proprietor' && 'ring-2 ring-teal bg-teal-light/30',
@@ -77,12 +82,6 @@ export function TypeSelector({ token, applicationId, initial }: Props) {
           </div>
         </Card>
       </div>
-
-      {error && (
-        <div className="text-sm p-3 rounded bg-red-50 border-l-4 border-accent text-accent">
-          {error}
-        </div>
-      )}
 
       <div className="flex justify-end">
         <Button size="lg" onClick={handleNext} disabled={!selected || saving}>
