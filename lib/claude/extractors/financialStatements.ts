@@ -77,20 +77,27 @@ export function validateFinancialStatements(
   if (hasPlData) detected.add('PL');
   if (hasBsData) detected.add('BS');
 
-  if (!detected.has('PL')) {
+  // 両方とも欠けてる場合はまとめて1メッセージで通知（決算書全体が読めてない可能性）
+  if (!detected.has('PL') && !detected.has('BS')) {
     errors.push({
       level: 'error',
       field: 'document_types_detected',
       message:
-        '損益計算書（PL）が確認できません。決算書のうち損益計算書のページを含めて再アップロードしてください。',
+        '決算書からPL（損益計算書）とBS（貸借対照表）のどちらも検出できませんでした。アップロードしたPDFが決算書の全ページを含んでいるかご確認ください。',
     });
-  }
-  if (!detected.has('BS')) {
+  } else if (!detected.has('PL')) {
     errors.push({
       level: 'error',
       field: 'document_types_detected',
       message:
-        '貸借対照表（BS）が確認できません。決算書のうち貸借対照表のページを含めて再アップロードしてください。',
+        '決算書にPL（損益計算書）のページが見つかりません。決算書PDFにPLが含まれているかご確認ください。',
+    });
+  } else if (!detected.has('BS')) {
+    errors.push({
+      level: 'error',
+      field: 'document_types_detected',
+      message:
+        '決算書にBS（貸借対照表）のページが見つかりません。決算書PDFにBSが含まれているかご確認ください。',
     });
   }
 
@@ -104,7 +111,7 @@ export function validateFinancialStatements(
       level: 'warning',
       field: 'operating_profit',
       message:
-        'PL内に販管費（SGA）の内訳が見つからないため、営業利益が確認できません。販管費明細ページがある場合は追加でアップロードしてください。',
+        '営業利益が読み取れませんでした。決算書に販管費明細ページが含まれているかご確認ください。',
     });
   }
 
