@@ -102,8 +102,8 @@ export function DocumentUploader({
             const baseName = f.name.replace(/\.pdf$/i, '');
             pages.forEach((blob, idx) => {
               const name =
-                pages.length === 1 ? `${baseName}.png` : `${baseName}_p${idx + 1}.png`;
-              expanded.push(new File([blob], name, { type: 'image/png' }));
+                pages.length === 1 ? `${baseName}.jpg` : `${baseName}_p${idx + 1}.jpg`;
+              expanded.push(new File([blob], name, { type: 'image/jpeg' }));
             });
           } else {
             expanded.push(f);
