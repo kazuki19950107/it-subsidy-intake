@@ -3,34 +3,9 @@ import {
   anthropic,
   MODEL,
   MAX_TOKENS,
-  isPdf,
   type SupportedMediaType,
   type SupportedImageMediaType,
 } from '../client';
-import type Anthropic from '@anthropic-ai/sdk';
-
-type ContentBlock = Anthropic.MessageCreateParams['messages'][number]['content'];
-
-function buildContentBlock(base64: string, mediaType: SupportedMediaType) {
-  if (isPdf(mediaType)) {
-    return {
-      type: 'document' as const,
-      source: {
-        type: 'base64' as const,
-        media_type: 'application/pdf' as const,
-        data: base64,
-      },
-    };
-  }
-  return {
-    type: 'image' as const,
-    source: {
-      type: 'base64' as const,
-      media_type: mediaType,
-      data: base64,
-    },
-  };
-}
 
 export type ExtractionResult<T> = {
   data: T;
@@ -52,6 +27,9 @@ export async function extractDocument<T>({
   userPrompt: string;
   schema: z.ZodType<T>;
 }): Promise<ExtractionResult<T>> {
+  if (mediaType === 'application/pdf') {
+    throw new Error('PDF は事前に画像へ変換してから解析してください');
+  }
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -60,9 +38,16 @@ export async function extractDocument<T>({
       {
         role: 'user',
         content: [
-          buildContentBlock(imageBase64, mediaType) as never,
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: imageBase64,
+            },
+          },
           { type: 'text', text: userPrompt },
-        ] as ContentBlock,
+        ],
       },
     ],
   });

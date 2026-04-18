@@ -91,8 +91,27 @@ export function DocumentUploader({
       setError(null);
 
       try {
+        // PDF は事前にクライアント側で PNG に変換する。
+        // Claude へ document ブロックで投げると正しく抽出できないことがあるため、
+        // 1ページずつ画像化してから通常の画像アップロードフローに乗せる。
+        const expanded: File[] = [];
+        for (const f of Array.from(files)) {
+          if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+            const { pdfToPngPagesClient } = await import('@/lib/pdf/pdfToImage');
+            const pages = await pdfToPngPagesClient(f);
+            const baseName = f.name.replace(/\.pdf$/i, '');
+            pages.forEach((blob, idx) => {
+              const name =
+                pages.length === 1 ? `${baseName}.png` : `${baseName}_p${idx + 1}.png`;
+              expanded.push(new File([blob], name, { type: 'image/png' }));
+            });
+          } else {
+            expanded.push(f);
+          }
+        }
+
         const newDocs: UploadedDoc[] = [...docs];
-        for (const file of Array.from(files)) {
+        for (const file of expanded) {
           if (file.size > 20 * 1024 * 1024) {
             throw new Error(`${file.name}: ファイルサイズが20MBを超えています`);
           }
