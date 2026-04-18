@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { analyzeRequestSchema } from '@/lib/validation/schemas';
 import { runExtractor } from '@/lib/claude/extractors';
-import { normalizeMediaType } from '@/lib/claude/client';
+import { visionOcr } from '@/lib/ocr/visionOcr';
 import { sha256 } from '@/lib/utils/hash';
 import { checkMonthlyBudget, checkApplicationBudget, logApiUsage } from '@/lib/utils/costGuard';
 import { auditLog } from '@/lib/utils/logger';
@@ -84,9 +84,12 @@ export async function POST(req: NextRequest) {
     }
 
     const base64 = buffer.toString('base64');
-    const mediaType = normalizeMediaType(doc.file_mime);
 
-    const result = await runExtractor(doc.doc_type, base64, mediaType);
+    // Step 1: Google Vision API で日本語OCR（テキスト抽出）
+    const ocr = await visionOcr(base64);
+
+    // Step 2: Claude で OCR テキストを構造化JSONへ整形
+    const result = await runExtractor(doc.doc_type, ocr.text);
 
     await logApiUsage({
       applicationId: doc.application_id,

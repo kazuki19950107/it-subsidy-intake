@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { extractDocument } from './base';
-import type { SupportedMediaType } from '../client';
+import { extractFromText } from './base';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 
 export const TaxCert2Schema = z.object({
@@ -19,10 +18,10 @@ export const TaxCert2Schema = z.object({
 export type TaxCert2Data = z.infer<typeof TaxCert2Schema>;
 
 export const SYSTEM_PROMPT = `あなたは日本の税務署が発行する納税証明書（その2：所得金額）の解析専門家です。
-提示された画像から指定されたJSONスキーマに従って情報を正確に抽出してください。
+OCRで抽出されたテキストから、指定されたJSONスキーマに従って情報を正確に抽出してください。
 和暦は西暦に変換してください。金額はカンマを除去し数値のみにしてください。不明な項目は null としてください。`;
 
-export const USER_PROMPT = `この画像は納税証明書その2（所得金額の証明）です。以下の項目を抽出してください：
+export const USER_PROMPT = `以下のOCRテキストは納税証明書その2（所得金額の証明）です。以下の項目を抽出してください：
 - certificate_type: 証明書の種類（「その1」「その2」「その3」「その4」のいずれか）
 - tax_category: 税目（「申告所得税及復興特別所得税」など、記載されている文字列をそのまま）
 - taxpayer_address: 納税者の住所
@@ -36,13 +35,9 @@ export const USER_PROMPT = `この画像は納税証明書その2（所得金額
 
 JSON形式のみで出力してください。`;
 
-export async function extractTaxCertificate2(
-  imageBase64: string,
-  mediaType: SupportedMediaType,
-) {
-  return extractDocument({
-    imageBase64,
-    mediaType,
+export async function extractTaxCertificate2(text: string) {
+  return extractFromText({
+    text,
     systemPrompt: SYSTEM_PROMPT,
     userPrompt: USER_PROMPT,
     schema: TaxCert2Schema,

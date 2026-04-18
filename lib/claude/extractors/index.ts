@@ -1,5 +1,4 @@
 import type { DocType } from '@/lib/supabase/types';
-import type { SupportedMediaType } from '../client';
 import { extractCertificateOfHistory } from './certificateOfHistory';
 import { extractTaxCertificate1, validateTaxCert1 } from './taxCertificate1';
 import { extractTaxCertificate2, validateTaxCert2 } from './taxCertificate2';
@@ -22,12 +21,11 @@ export type RunExtractionResult = {
 
 export async function runExtractor(
   docType: DocType,
-  imageBase64: string,
-  mediaType: SupportedMediaType,
+  ocrText: string,
 ): Promise<RunExtractionResult> {
   switch (docType) {
     case 'certificate_of_history': {
-      const r = await extractCertificateOfHistory(imageBase64, mediaType);
+      const r = await extractCertificateOfHistory(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -36,7 +34,7 @@ export async function runExtractor(
       };
     }
     case 'tax_cert_1': {
-      const r = await extractTaxCertificate1(imageBase64, mediaType);
+      const r = await extractTaxCertificate1(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -45,7 +43,7 @@ export async function runExtractor(
       };
     }
     case 'tax_cert_2': {
-      const r = await extractTaxCertificate2(imageBase64, mediaType);
+      const r = await extractTaxCertificate2(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -54,7 +52,7 @@ export async function runExtractor(
       };
     }
     case 'financial_statements': {
-      const r = await extractFinancialStatements(imageBase64, mediaType);
+      const r = await extractFinancialStatements(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -63,7 +61,7 @@ export async function runExtractor(
       };
     }
     case 'id_document': {
-      const r = await extractIdDocument(imageBase64, mediaType);
+      const r = await extractIdDocument(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -72,7 +70,7 @@ export async function runExtractor(
       };
     }
     case 'tax_return': {
-      const r = await extractTaxReturn(imageBase64, mediaType);
+      const r = await extractTaxReturn(ocrText);
       // e-Tax 受信通知の有無は後段のクロスチェックで判定するため、ここでは false 固定
       return {
         data: r.data as unknown as Record<string, unknown>,
@@ -82,7 +80,7 @@ export async function runExtractor(
       };
     }
     case 'blue_form': {
-      const r = await extractBlueForm(imageBase64, mediaType);
+      const r = await extractBlueForm(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
@@ -91,7 +89,7 @@ export async function runExtractor(
       };
     }
     case 'e_tax_receipt': {
-      const r = await extractETaxReceipt(imageBase64, mediaType);
+      const r = await extractETaxReceipt(ocrText);
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
