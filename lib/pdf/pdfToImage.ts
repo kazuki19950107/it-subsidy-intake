@@ -13,7 +13,10 @@ export async function pdfToPngPagesClient(
   if (typeof window === 'undefined') {
     throw new Error('pdfToPngPagesClient はブラウザでのみ実行できます');
   }
-  const { scale = 2.0, maxPages = 10 } = options;
+  // 履歴事項全部証明書など小さい文字のスキャンPDFは scale 2.0 では Claude が
+  // 文字を読み切れず推測で埋める挙動になるため、4.0 まで上げる。
+  // 結果サイズが20MB制限を超える場合のみ縮める。
+  const { scale = 4.0, maxPages = 10 } = options;
 
   // 動的 import — Server コンポーネントのバンドルに含めない。
   // pdfjs-dist の build/pdf.mjs は型定義がないため、ローカル変数で型をキャスト。
