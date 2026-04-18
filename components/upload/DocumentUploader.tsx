@@ -113,20 +113,23 @@ export function DocumentUploader({
             const body = await uploadReq.json().catch(() => ({}));
             throw new Error(body.error ?? 'アップロード準備に失敗しました');
           }
-          const { signed_url, document_id, token: uploadToken } = await uploadReq.json();
+          const { signed_url, document_id } = await uploadReq.json();
 
           // 2. ファイル本体を Supabase Storage にアップロード
+          // signed URL はクエリ文字列にトークンを含むため、Authorization ヘッダー不要。
+          // x-upsert で再アップロード時の上書きを許可。
           const put = await fetch(signed_url, {
             method: 'PUT',
             headers: {
               'Content-Type': file.type || 'application/octet-stream',
-              ...(uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {}),
+              'x-upsert': 'true',
             },
             body: file,
           });
           if (!put.ok) {
+            const detail = await put.text().catch(() => '');
             throw new Error(
-              `ファイルのアップロードに失敗しました（${put.status}）。通信環境をご確認ください。`,
+              `ファイルのアップロードに失敗しました（${put.status}）${detail ? `: ${detail.slice(0, 200)}` : ''}`,
             );
           }
 
