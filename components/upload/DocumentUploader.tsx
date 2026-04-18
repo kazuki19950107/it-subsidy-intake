@@ -192,7 +192,8 @@ export function DocumentUploader({
     if (res.ok) {
       update(docs.filter((d) => d.id !== docId));
     } else {
-      alert('削除に失敗しました');
+      const body = await res.json().catch(() => ({}));
+      alert(`削除に失敗しました: ${body.error ?? `HTTP ${res.status}`}`);
     }
   };
 

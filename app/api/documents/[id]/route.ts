@@ -45,6 +45,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .maybeSingle();
   if (!doc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
+  // api_usage_logs は documents への FK を持つ（CASCADE 無し）。
+  // 課金・コスト追跡のため履歴自体は残し、document_id だけ NULL に書き換える。
+  await supabase
+    .from('api_usage_logs')
+    .update({ document_id: null })
+    .eq('document_id', id);
+
   // Storage のファイルも削除
   await supabase.storage.from('documents').remove([doc.storage_path]);
   const { error } = await supabase.from('documents').delete().eq('id', id);
