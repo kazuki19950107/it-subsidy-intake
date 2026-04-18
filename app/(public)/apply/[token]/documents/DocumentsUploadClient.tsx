@@ -40,8 +40,13 @@ export function DocumentsUploadClient({ token, applicationId, applicantType, doc
     ? [...required, 'e_tax_receipt']
     : required;
 
-  const missingCount = required.filter((t) => !groupedByType[t] || groupedByType[t].length === 0)
-    .length;
+  // 必須書類のうち「成功した（または進行中・解析中の）書類が1件以上ある」種別をカウント。
+  // failed のみ・未アップロードは未提出扱い。
+  const isSubmitted = (t: DocType) => {
+    const docs = groupedByType[t] ?? [];
+    return docs.some((d) => d.ocr_status !== 'failed');
+  };
+  const missingCount = required.filter((t) => !isSubmitted(t)).length;
 
   return (
     <div className="space-y-6">
@@ -65,12 +70,43 @@ export function DocumentsUploadClient({ token, applicationId, applicantType, doc
             required={isRequired}
             existingDocs={existing}
             onChange={(updated) => {
-              // ドキュメントリストを差し替え
+              // この docType の書類を最新の状態で差し替える。
+              // 既存書類は元の Document をベースに status/ocr_result を更新、
+              // 新規アップロードは UploadedDoc から最低限の Document を生成する。
               const others = allDocs.filter((d) => d.doc_type !== docType);
               const reconstructed: Document[] = updated.map((u) => {
                 const found = allDocs.find((d) => d.id === u.id);
-                return (found ?? ({} as Document));
-              }).filter((d): d is Document => !!d.id);
+                if (found) {
+                  return {
+                    ...found,
+                    ocr_status: u.ocr_status,
+                    ocr_result: u.ocr_result,
+                    ocr_error: u.ocr_error,
+                    validation_errors:
+                      u.validation_errors as unknown as Document['validation_errors'],
+                  };
+                }
+                return {
+                  id: u.id,
+                  application_id: applicationId,
+                  doc_type: docType,
+                  doc_subtype: null,
+                  storage_path: '',
+                  file_name: u.file_name,
+                  file_mime: '',
+                  file_size: 0,
+                  file_hash: null,
+                  ocr_status: u.ocr_status,
+                  ocr_result: u.ocr_result,
+                  ocr_confidence: null,
+                  ocr_error: u.ocr_error,
+                  validation_errors:
+                    u.validation_errors as unknown as Document['validation_errors'],
+                  user_corrected: null,
+                  uploaded_at: new Date().toISOString(),
+                  analyzed_at: null,
+                } as Document;
+              });
               setAllDocs([...others, ...reconstructed]);
             }}
           />
