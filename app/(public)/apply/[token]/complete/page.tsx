@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import type { Application } from '@/lib/supabase/types';
 
 export default async function CompletePage({
   params,
@@ -10,11 +11,12 @@ export default async function CompletePage({
 }) {
   const { token } = await params;
   const supabase = createServiceRoleClient();
-  const { data: app } = await supabase
+  const { data } = await supabase
     .from('applications')
     .select('status')
     .eq('token', token)
     .maybeSingle();
+  const app = data as Pick<Application, 'status'> | null;
   if (!app) notFound();
   // 送信前に complete に来た場合は review に戻す
   if (app.status !== 'submitted' && app.status !== 'completed') {

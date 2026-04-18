@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Edit2, Save, X } from 'lucide-react';
 import type { DocType } from '@/lib/supabase/types';
