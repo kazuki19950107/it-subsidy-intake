@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { runCrossCheck } from '@/lib/validation/crossCheck';
 import { REQUIRED_DOCS } from '@/lib/claude/extractors';
 import { auditLog } from '@/lib/utils/logger';
-import type { Document } from '@/lib/supabase/types';
+import type { Application, Document } from '@/lib/supabase/types';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceRoleClient();
-  const { data: app } = await supabase
+  const { data } = await supabase
     .from('applications')
     .select('*')
     .eq('id', application_id)
     .maybeSingle();
+  const app = data as Application | null;
   if (!app) return NextResponse.json({ error: '申請が見つかりません' }, { status: 404 });
   if (!app.applicant_type) {
     return NextResponse.json(

@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { DocumentsUploadClient } from './DocumentsUploadClient';
-import type { Document } from '@/lib/supabase/types';
+import type { Application, Document } from '@/lib/supabase/types';
 
 export default async function DocumentsPage({
   params,
@@ -10,11 +10,12 @@ export default async function DocumentsPage({
 }) {
   const { token } = await params;
   const supabase = createServiceRoleClient();
-  const { data: app } = await supabase
+  const { data } = await supabase
     .from('applications')
     .select('id, applicant_type, applicant_name, company_name')
     .eq('token', token)
     .maybeSingle();
+  const app = data as Pick<Application, 'id' | 'applicant_type' | 'applicant_name' | 'company_name'> | null;
   if (!app) notFound();
   if (!app.applicant_type) redirect(`/apply/${token}/type`);
   if (!app.applicant_name) redirect(`/apply/${token}/info`);

@@ -5,7 +5,6 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 // 標準フォントや worker のパスを無効化（サーバー側で直接実行）
-// @ts-expect-error -- pdfjs の型に disableWorker は存在しないが実際には効く
 pdfjs.GlobalWorkerOptions.workerSrc = '';
 
 export async function pdfToPngPages(pdfBuffer: Buffer, maxPages = 5): Promise<Buffer[]> {
@@ -40,7 +39,10 @@ export async function pdfToPngPages(pdfBuffer: Buffer, maxPages = 5): Promise<Bu
  */
 export async function pdfToPngPagesClient(file: File): Promise<Blob[]> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjsClient = await import('pdfjs-dist/build/pdf.mjs');
+  // pdfjs-dist の build/pdf.mjs は型定義がないため、動的 import + any キャストで回避
+  const pdfjsClient = (await import(
+    /* webpackIgnore: true */ 'pdfjs-dist/build/pdf.mjs' as string
+  )) as typeof pdfjs;
   pdfjsClient.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
     import.meta.url,
@@ -60,7 +62,7 @@ export async function pdfToPngPagesClient(file: File): Promise<Blob[]> {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('canvas 2d コンテキスト取得失敗');
 
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    await page.render({ canvasContext: ctx, viewport }).promise;
 
     const blob: Blob = await new Promise((resolve, reject) => {
       canvas.toBlob(

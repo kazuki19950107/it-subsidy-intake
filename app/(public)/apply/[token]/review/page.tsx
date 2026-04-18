@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ValidationList } from '@/components/upload/ValidationBadge';
 import { SubmitButton } from './SubmitButton';
-import type { Document } from '@/lib/supabase/types';
+import type { Application, Document } from '@/lib/supabase/types';
 
 export default async function ReviewPage({
   params,
@@ -15,11 +15,12 @@ export default async function ReviewPage({
 }) {
   const { token } = await params;
   const supabase = createServiceRoleClient();
-  const { data: app } = await supabase
+  const { data } = await supabase
     .from('applications')
     .select('*')
     .eq('token', token)
     .maybeSingle();
+  const app = data as Application | null;
   if (!app) notFound();
   if (!app.applicant_type) redirect(`/apply/${token}/type`);
 
