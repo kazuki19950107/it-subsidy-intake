@@ -32,9 +32,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // storage_path は application_id 配下に配置
-  const safeName = data.file_name.replace(/[^\w.\-一-龠ぁ-んァ-ヶ]/g, '_');
-  const storage_path = `${data.application_id}/${data.doc_type}/${Date.now()}_${safeName}`;
+  // storage_path は application_id 配下に配置。
+  // Supabase Storage は ASCII 英数 + 一部記号のみ許可（日本語ファイル名は InvalidKey になる）。
+  // 拡張子だけ保持して、本体は元ファイル名を使わずユニークIDで命名する。
+  const extMatch = data.file_name.match(/\.([a-zA-Z0-9]+)$/);
+  const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
+  const storage_path = `${data.application_id}/${data.doc_type}/${Date.now()}_${crypto.randomUUID()}${ext}`;
 
   // documents レコード作成
   const { data: doc, error: insertErr } = await supabase
