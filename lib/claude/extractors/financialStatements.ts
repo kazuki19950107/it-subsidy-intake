@@ -62,29 +62,42 @@ export function validateFinancialStatements(
   data: FinancialStatementsData,
 ): CrossCheckResult[] {
   const errors: CrossCheckResult[] = [];
-  const detected = data.document_types_detected ?? [];
+  const detected = new Set(data.document_types_detected ?? []);
 
-  // PL と BS は必須。SGA（販管費内訳）は PL 内に含まれることが多いので
-  // 必須にしない。営業利益が抽出できていれば SGA 相当の情報があると見なす。
-  if (!detected.includes('PL')) {
+  // データから逆算して検出を補強する。
+  // PL の主要数値（売上 or 売上総利益 or 営業利益）が取れていたら PL は実在する。
+  // BS の主要数値（資産合計 or 負債合計 or 純資産合計）が取れていたら BS は実在する。
+  // モデルが種別タグを出し忘れても、数値が拾えていれば書類はあると判断。
+  const hasPlData =
+    data.net_sales != null || data.gross_profit != null || data.operating_profit != null;
+  const hasBsData =
+    data.total_assets != null ||
+    data.total_liabilities != null ||
+    data.net_assets != null;
+  if (hasPlData) detected.add('PL');
+  if (hasBsData) detected.add('BS');
+
+  if (!detected.has('PL')) {
     errors.push({
       level: 'error',
       field: 'document_types_detected',
-      message: '損益計算書（PL）が確認できません。追加でアップロードしてください。',
+      message:
+        '損益計算書（PL）が確認できません。決算書のうち損益計算書のページを含めて再アップロードしてください。',
     });
   }
-  if (!detected.includes('BS')) {
+  if (!detected.has('BS')) {
     errors.push({
       level: 'error',
       field: 'document_types_detected',
-      message: '貸借対照表（BS）が確認できません。追加でアップロードしてください。',
+      message:
+        '貸借対照表（BS）が確認できません。決算書のうち貸借対照表のページを含めて再アップロードしてください。',
     });
   }
 
-  // SGA も PL も検出されておらず、営業利益も取れていない → 警告（不完全な決算書の可能性）
+  // PL ありかつ営業利益が取れていない → 警告（販管費明細が別ページの可能性）
   if (
-    detected.includes('PL') &&
-    !detected.includes('SGA') &&
+    detected.has('PL') &&
+    !detected.has('SGA') &&
     data.operating_profit == null
   ) {
     errors.push({

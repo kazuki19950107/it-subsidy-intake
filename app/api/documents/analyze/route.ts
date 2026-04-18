@@ -91,6 +91,15 @@ export async function POST(req: NextRequest) {
     // Step 2: Claude で OCR テキストを構造化JSONへ整形
     const result = await runExtractor(doc.doc_type, ocr.text);
 
+    // 診断用：抽出されたOCRテキストの先頭2000文字を結果に含める
+    // （何が抽出されたか確認できないと「解析失敗」の原因が分からないため）
+    const enrichedData = {
+      ...result.data,
+      _ocr_preview: ocr.text.slice(0, 2000),
+      _ocr_page_count: ocr.pageCount,
+      _ocr_total_chars: ocr.text.length,
+    };
+
     await logApiUsage({
       applicationId: doc.application_id,
       documentId: document_id,
@@ -103,7 +112,7 @@ export async function POST(req: NextRequest) {
       .from('documents')
       .update({
         ocr_status: 'done',
-        ocr_result: result.data,
+        ocr_result: enrichedData,
         ocr_confidence: result.confidence,
         validation_errors: result.validationErrors as unknown as Record<string, unknown>[],
         analyzed_at: new Date().toISOString(),
@@ -124,7 +133,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      ocr_result: result.data,
+      ocr_result: enrichedData,
       validation_errors: result.validationErrors,
       confidence: result.confidence,
     });

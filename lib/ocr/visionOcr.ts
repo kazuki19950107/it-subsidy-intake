@@ -6,7 +6,8 @@ import 'server-only';
 
 const IMAGES_ENDPOINT = 'https://vision.googleapis.com/v1/images:annotate';
 const FILES_ENDPOINT = 'https://vision.googleapis.com/v1/files:annotate';
-const MAX_PDF_PAGES = 5; // files:annotate の同期上限
+const PAGES_PER_BATCH = 5; // files:annotate (同期) の1リクエスト上限
+const MAX_BATCHES = 4; // 最大 20 ページまで対応（2期決算書などをカバー）
 
 export type VisionOcrResult = {
   text: string;
@@ -63,8 +64,8 @@ async function ocrImage(base64: string): Promise<VisionOcrResult> {
   return { text, pageCount: 1 };
 }
 
-/** PDF 全ページを OCR してテキストを連結する（同期、最大 5 ページ） */
-async function ocrPdf(base64: string): Promise<VisionOcrResult> {
+/** files:annotate (同期) を 1 バッチ呼び出して指定ページのテキストを返す */
+async function ocrPdfBatch(base64: string, pageNumbers: number[]): Promise<string[]> {
   const data = (await callVision(FILES_ENDPOINT, {
     requests: [
       {
@@ -74,7 +75,7 @@ async function ocrPdf(base64: string): Promise<VisionOcrResult> {
         },
         features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
         imageContext: { languageHints: ['ja'] },
-        pages: Array.from({ length: MAX_PDF_PAGES }, (_, i) => i + 1),
+        pages: pageNumbers,
       },
     ],
   })) as {
@@ -89,6 +90,8 @@ async function ocrPdf(base64: string): Promise<VisionOcrResult> {
 
   const fileResp = data.responses?.[0];
   if (fileResp?.error?.message) {
+    // ページ範囲外の場合は無視して空配列（PDF が要求ページ数より少ない時など）
+    if (/Invalid pages|out of range/i.test(fileResp.error.message)) return [];
     throw new Error(`Vision API エラー: ${fileResp.error.message}`);
   }
 
@@ -96,17 +99,34 @@ async function ocrPdf(base64: string): Promise<VisionOcrResult> {
   const texts: string[] = [];
   pages.forEach((p, idx) => {
     if (p.error?.message) {
-      texts.push(`[ページ ${idx + 1} OCR失敗: ${p.error.message}]`);
+      texts.push(`[ページ ${pageNumbers[idx]} OCR失敗: ${p.error.message}]`);
       return;
     }
     const t = p.fullTextAnnotation?.text;
-    if (t && t.trim()) texts.push(`--- ページ ${idx + 1} ---\n${t}`);
+    if (t && t.trim()) texts.push(`--- ページ ${pageNumbers[idx]} ---\n${t}`);
   });
+  return texts;
+}
 
-  if (texts.length === 0) {
+/** PDF 全ページを OCR（同期APIを最大 4 バッチ＝20 ページまで） */
+async function ocrPdf(base64: string): Promise<VisionOcrResult> {
+  const allTexts: string[] = [];
+  let totalPages = 0;
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const start = batch * PAGES_PER_BATCH + 1;
+    const pageNums = Array.from({ length: PAGES_PER_BATCH }, (_, i) => start + i);
+    const texts = await ocrPdfBatch(base64, pageNums);
+    if (texts.length === 0) break; // PDF のページ数を超えたら抜ける
+    allTexts.push(...texts);
+    totalPages += texts.length;
+    // 4 バッチ目まで満たんなかったら（途中で切れた）終わり
+    if (texts.length < PAGES_PER_BATCH) break;
+  }
+
+  if (allTexts.length === 0) {
     throw new Error('Vision API がPDFからテキストを抽出できませんでした（白紙か不鮮明な可能性）');
   }
-  return { text: texts.join('\n\n'), pageCount: pages.length };
+  return { text: allTexts.join('\n\n'), pageCount: totalPages };
 }
 
 /**
