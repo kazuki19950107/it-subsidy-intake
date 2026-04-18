@@ -1,5 +1,36 @@
 import { z } from 'zod';
-import { anthropic, MODEL, MAX_TOKENS, type SupportedMediaType } from '../client';
+import {
+  anthropic,
+  MODEL,
+  MAX_TOKENS,
+  isPdf,
+  type SupportedMediaType,
+  type SupportedImageMediaType,
+} from '../client';
+import type Anthropic from '@anthropic-ai/sdk';
+
+type ContentBlock = Anthropic.MessageCreateParams['messages'][number]['content'];
+
+function buildContentBlock(base64: string, mediaType: SupportedMediaType) {
+  if (isPdf(mediaType)) {
+    return {
+      type: 'document' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: 'application/pdf' as const,
+        data: base64,
+      },
+    };
+  }
+  return {
+    type: 'image' as const,
+    source: {
+      type: 'base64' as const,
+      media_type: mediaType,
+      data: base64,
+    },
+  };
+}
 
 export type ExtractionResult<T> = {
   data: T;
@@ -29,16 +60,9 @@ export async function extractDocument<T>({
       {
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: imageBase64,
-            },
-          },
+          buildContentBlock(imageBase64, mediaType) as never,
           { type: 'text', text: userPrompt },
-        ],
+        ] as ContentBlock,
       },
     ],
   });
@@ -87,7 +111,7 @@ export async function extractDocumentMulti<T>({
   userPrompt,
   schema,
 }: {
-  images: Array<{ base64: string; mediaType: SupportedMediaType }>;
+  images: Array<{ base64: string; mediaType: SupportedImageMediaType }>;
   systemPrompt: string;
   userPrompt: string;
   schema: z.ZodType<T>;

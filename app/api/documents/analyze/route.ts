@@ -83,13 +83,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // PDF は MVP では先頭ページだけ対応（クライアント側で画像化済みを推奨）
-    if (doc.file_mime === 'application/pdf') {
-      throw new Error(
-        'PDFは自動解析に対応していません。お手数ですが画像（JPEG/PNG）でアップロードし直してください。',
-      );
-    }
-
     const base64 = buffer.toString('base64');
     const mediaType = normalizeMediaType(doc.file_mime);
 

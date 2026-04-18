@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { extractDocument, extractDocumentMulti } from './base';
-import type { SupportedMediaType } from '../client';
+import type { SupportedMediaType, SupportedImageMediaType } from '../client';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 
 export const FinancialStatementsSchema = z.object({
@@ -55,7 +55,7 @@ export async function extractFinancialStatements(
 }
 
 export async function extractFinancialStatementsMulti(
-  images: Array<{ base64: string; mediaType: SupportedMediaType }>,
+  images: Array<{ base64: string; mediaType: SupportedImageMediaType }>,
 ) {
   return extractDocumentMulti({
     images,

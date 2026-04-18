@@ -8,10 +8,16 @@ export const anthropic = new Anthropic({
 export const MODEL = 'claude-sonnet-4-5-20250929';
 export const MAX_TOKENS = 2048;
 
-export type SupportedMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+export type SupportedImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+export type SupportedMediaType = SupportedImageMediaType | 'application/pdf';
+
+export function isPdf(mediaType: SupportedMediaType): mediaType is 'application/pdf' {
+  return mediaType === 'application/pdf';
+}
 
 export function normalizeMediaType(mime: string): SupportedMediaType {
   const m = mime.toLowerCase();
+  if (m === 'application/pdf' || m === 'pdf') return 'application/pdf';
   if (m === 'image/jpeg' || m === 'image/jpg' || m === 'jpeg' || m === 'jpg') return 'image/jpeg';
   if (m === 'image/png' || m === 'png') return 'image/png';
   if (m === 'image/webp' || m === 'webp') return 'image/webp';
