@@ -3,6 +3,10 @@ import { ApplicationList, type ApplicationWithProgress } from '@/components/admi
 import { computeProgress } from '@/lib/utils/progress';
 import type { Application, DocType } from '@/lib/supabase/types';
 
+// 静的プリレンダーされると admin_memo 編集や新規発行が反映されないため毎回SSR。
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type DashboardRow = Application & { documents: Array<{ doc_type: DocType }> };
 
 export default async function DashboardPage() {
