@@ -188,18 +188,19 @@ export function DocumentUploader({
     [applicationId, docType, docs],
   );
 
-  const handleDownload = async (docId: string, fileName: string) => {
+  const handleDownload = async (docId: string, fallbackName: string) => {
     try {
       const res = await fetch(`/api/documents/${docId}/signed-url`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      const { url } = await res.json();
-      // 別タブで開いてブラウザのダウンロード機構に任せる（Content-Disposition で download 強制済）
+      const { url, file_name } = await res.json();
+      // Content-Disposition でサーバー側生成のファイル名（会社名_書類種別.pdf）が
+      // 適用される。a.download は同一オリジン or CORS なら効く保険。
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = file_name ?? fallbackName;
       document.body.appendChild(a);
       a.click();
       a.remove();
