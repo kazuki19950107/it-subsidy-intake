@@ -33,3 +33,5 @@ sample-documents/*
 
 # Claude Code 内部
 .claude/
+
+.vercel
