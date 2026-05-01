@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, ExternalLink } from 'lucide-react';
@@ -13,13 +13,16 @@ export function ApplyUrlBlock({
   expiresAt: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const base =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_APP_URL ?? '';
-  const url = `${base}/apply/${token}`;
+  // SSR と CSR で host が異なる（ポートずれ等）と hydration mismatch するため、
+  // マウント後に window.location.origin を確定する。
+  const [base, setBase] = useState<string | null>(null);
+  useEffect(() => {
+    setBase(window.location.origin);
+  }, []);
+  const url = base ? `${base}/apply/${token}` : '';
 
   const copy = async () => {
+    if (!url) return;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -38,12 +41,12 @@ export function ApplyUrlBlock({
           className="font-mono text-xs h-9"
           onFocus={(e) => e.currentTarget.select()}
         />
-        <Button type="button" variant="default" size="sm" onClick={copy}>
+        <Button type="button" variant="default" size="sm" onClick={copy} disabled={!url}>
           {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
           {copied ? 'コピー済' : 'コピー'}
         </Button>
-        <Button type="button" variant="outline" size="sm" asChild>
-          <a href={url} target="_blank" rel="noreferrer">
+        <Button type="button" variant="outline" size="sm" asChild disabled={!url}>
+          <a href={url || '#'} target="_blank" rel="noreferrer">
             <ExternalLink className="w-3 h-3" />
           </a>
         </Button>

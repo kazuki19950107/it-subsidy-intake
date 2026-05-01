@@ -48,6 +48,12 @@ export interface Application {
   vendor_contact_id: string | null;
   notes: string | null;
   admin_memo: string | null;
+  recipient_label: string | null;
+  subsidy_program_label: string | null;
+  applicant_deadline: string | null;
+  intake_message: string | null;
+  share_token: string | null;
+  share_token_expires_at: string | null;
   submitted_at: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;

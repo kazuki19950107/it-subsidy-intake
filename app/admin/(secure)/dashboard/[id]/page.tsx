@@ -12,7 +12,10 @@ import type { Document, Application } from '@/lib/supabase/types';
 import { RejectControl } from './RejectControl';
 import { LineSummaryBlock } from './LineSummaryBlock';
 import { ApplyUrlBlock } from './ApplyUrlBlock';
+import { AgentShareBlock } from './AgentShareBlock';
 import { AdminMemoEditor } from './AdminMemoEditor';
+import { IntakeContentEditor } from './IntakeContentEditor';
+import { DeleteApplicationControl } from './DeleteApplicationControl';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { computeProgress } from '@/lib/utils/progress';
 
@@ -106,9 +109,25 @@ export default async function ApplicationDetailPage({
 
       <ApplyUrlBlock token={application.token} expiresAt={application.token_expires_at} />
 
+      <AgentShareBlock
+        applicationId={application.id}
+        initialShareToken={application.share_token}
+        initialExpiresAt={application.share_token_expires_at}
+      />
+
       <AdminMemoEditor
         applicationId={application.id}
         initialMemo={application.admin_memo}
+      />
+
+      <IntakeContentEditor
+        applicationId={application.id}
+        initial={{
+          recipient_label: application.recipient_label,
+          subsidy_program_label: application.subsidy_program_label,
+          applicant_deadline: application.applicant_deadline,
+          intake_message: application.intake_message,
+        }}
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -156,6 +175,12 @@ export default async function ApplicationDetailPage({
             <Button asChild variant="outline" className="w-full">
               <a href={`/api/admin/export?format=csv`}>CSV出力</a>
             </Button>
+            <DeleteApplicationControl
+              applicationId={application.id}
+              applicantLabel={
+                application.company_name || application.applicant_name || '(未入力)'
+              }
+            />
           </CardContent>
         </Card>
       </div>

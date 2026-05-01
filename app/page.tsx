@@ -9,7 +9,7 @@ export default function Home() {
           このサイトは、AzCreate からご案内した専用URLからのみご利用いただけます。
         </p>
         <div className="pt-4">
-          <Link href="/admin/dashboard" className="text-sm text-teal hover:underline">
+          <Link href="/admin/login" className="text-sm text-teal hover:underline">
             管理者の方はこちら →
           </Link>
         </div>

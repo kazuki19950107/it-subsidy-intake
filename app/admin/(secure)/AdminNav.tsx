@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { FileText, Plus, Download, Menu, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { FileText, Plus, Download, Menu, X, LogOut } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: '申請一覧', icon: FileText, external: false },
@@ -11,7 +12,20 @@ const NAV_ITEMS = [
 ];
 
 export function AdminNav() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } finally {
+      router.push('/admin/login');
+      router.refresh();
+    }
+  };
 
   return (
     <>
@@ -33,6 +47,15 @@ export function AdminNav() {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="px-3 py-1.5 rounded hover:bg-teal-light flex items-center gap-1 text-mute hover:text-ink disabled:opacity-50"
+        >
+          <LogOut className="w-4 h-4" />
+          ログアウト
+        </button>
       </nav>
 
       {/* Mobile hamburger */}
@@ -76,6 +99,18 @@ export function AdminNav() {
                 </Link>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                handleLogout();
+              }}
+              disabled={loggingOut}
+              className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-off-white text-mute disabled:opacity-50"
+            >
+              <LogOut className="w-4 h-4" />
+              ログアウト
+            </button>
           </nav>
         </div>
       )}
