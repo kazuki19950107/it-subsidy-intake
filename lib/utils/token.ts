@@ -1,12 +1,7 @@
 import { randomBytes } from 'crypto';
 
-const TOKEN_VALIDITY_DAYS = 30;
-
-export function generateApplicationToken(): { token: string; expiresAt: Date } {
-  const token = randomBytes(32).toString('base64url');
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + TOKEN_VALIDITY_DAYS);
-  return { token, expiresAt };
+export function generateApplicationToken(): string {
+  return randomBytes(32).toString('base64url');
 }
 
 export function isTokenExpired(expiresAt: string | Date): boolean {

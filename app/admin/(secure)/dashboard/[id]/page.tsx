@@ -107,7 +107,7 @@ export default async function ApplicationDetailPage({
         </CardContent>
       </Card>
 
-      <ApplyUrlBlock token={application.token} expiresAt={application.token_expires_at} />
+      <ApplyUrlBlock token={application.token} />
 
       <AgentShareBlock
         applicationId={application.id}

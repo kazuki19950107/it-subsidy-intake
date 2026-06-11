@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { isTokenExpired } from '@/lib/utils/token';
 import { computeProgress } from '@/lib/utils/progress';
 import { ApplyHeader } from './ApplyHeader';
 
@@ -16,24 +15,12 @@ export default async function ApplyLayout({
   const { data: application } = await supabase
     .from('applications')
     .select(
-      'id, token_expires_at, applicant_name, applicant_type, phone, email, line_display_name, company_name, status',
+      'id, applicant_name, applicant_type, phone, email, line_display_name, company_name, status',
     )
     .eq('token', token)
     .maybeSingle();
 
   if (!application) notFound();
-  if (isTokenExpired(application.token_expires_at)) {
-    return (
-      <div className="min-h-screen bg-off-white flex items-center justify-center p-4">
-        <div className="max-w-md bg-white border border-rule rounded-md p-8 text-center">
-          <h1 className="text-xl font-bold mb-2">このURLの有効期限が切れています</h1>
-          <p className="text-sm text-mute">
-            サポート担当までご連絡いただき、新しい申請URLを発行してください。
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const { data: docs } = await supabase
     .from('documents')

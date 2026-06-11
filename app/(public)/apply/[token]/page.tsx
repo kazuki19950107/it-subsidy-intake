@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { formatJpDate } from '@/lib/utils/dateCheck';
-import { isTokenExpired } from '@/lib/utils/token';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,13 +18,11 @@ export default async function LandingPage({
   const { data: app } = await supabase
     .from('applications')
     .select(
-      'token_expires_at, recipient_label, subsidy_program_label, applicant_deadline, intake_message',
+      'recipient_label, subsidy_program_label, applicant_deadline, intake_message',
     )
     .eq('token', token)
     .maybeSingle();
   if (!app) notFound();
-
-  const expired = isTokenExpired(app.token_expires_at);
 
   return (
     <div className="space-y-8">
@@ -143,18 +140,12 @@ export default async function LandingPage({
       </div>
 
       <div className="flex justify-end pt-4">
-        {expired ? (
-          <div className="w-full text-center text-sm text-accent bg-accent/5 border border-accent/30 rounded p-4">
-            申請URLの有効期限が切れています。サポート担当にお問い合わせください。
-          </div>
-        ) : (
-          <Button asChild size="lg">
-            <Link href={`/apply/${token}/type`}>
-              申請を開始する
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </Button>
-        )}
+        <Button asChild size="lg">
+          <Link href={`/apply/${token}/type`}>
+            申請を開始する
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </Button>
       </div>
     </div>
   );

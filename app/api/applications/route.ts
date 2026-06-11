@@ -29,14 +29,15 @@ export async function POST(req: NextRequest) {
     );
   }
   const body = parsed.data;
-  const { token, expiresAt } = generateApplicationToken();
+  const token = generateApplicationToken();
   const supabase = createServiceRoleClient();
 
   const { data, error } = await supabase
     .from('applications')
     .insert({
       token,
-      token_expires_at: expiresAt.toISOString(),
+      // 申請URLは無期限。列が not null のためプレースホルダの遠い未来日付を入れる。
+      token_expires_at: '2099-12-31T23:59:59Z',
       status: 'draft',
       admin_memo: body.memo ?? null,
       recipient_label: body.recipient_label ?? null,
@@ -64,7 +65,6 @@ export async function POST(req: NextRequest) {
     id: data.id,
     token,
     apply_url: `${appUrl}/apply/${token}`,
-    expires_at: expiresAt.toISOString(),
   });
 }
 

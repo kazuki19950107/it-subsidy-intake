@@ -5,13 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 
-export function ApplyUrlBlock({
-  token,
-  expiresAt,
-}: {
-  token: string;
-  expiresAt: string;
-}) {
+export function ApplyUrlBlock({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   // SSR と CSR で host が異なる（ポートずれ等）と hydration mismatch するため、
   // マウント後に window.location.origin を確定する。
@@ -27,9 +21,6 @@ export function ApplyUrlBlock({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const exp = new Date(expiresAt);
-  const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
   return (
     <div className="space-y-2 p-3 rounded border border-teal/30 bg-teal-light/30">
@@ -50,9 +41,6 @@ export function ApplyUrlBlock({
             <ExternalLink className="w-3 h-3" />
           </a>
         </Button>
-      </div>
-      <div className="text-xs text-mute">
-        有効期限: {exp.toLocaleString('ja-JP')}（あと{daysLeft}日）
       </div>
     </div>
   );

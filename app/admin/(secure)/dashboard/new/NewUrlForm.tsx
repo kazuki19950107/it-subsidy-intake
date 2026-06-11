@@ -16,7 +16,7 @@ export function NewUrlForm() {
   const [intakeMessage, setIntakeMessage] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ apply_url: string; expires_at: string } | null>(null);
+  const [result, setResult] = useState<{ apply_url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -47,7 +47,7 @@ export function NewUrlForm() {
         throw new Error(body.error ?? '発行失敗');
       }
       const data = await res.json();
-      setResult({ apply_url: data.apply_url, expires_at: data.expires_at });
+      setResult({ apply_url: data.apply_url });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -175,9 +175,6 @@ export function NewUrlForm() {
                 {copied ? 'コピー済' : 'コピー'}
               </Button>
             </div>
-            <p className="text-xs text-mute">
-              有効期限: {new Date(result.expires_at).toLocaleString('ja-JP')}
-            </p>
           </div>
           <Button variant="outline" onClick={reset} className="w-full">
             続けて別のURLを発行する
