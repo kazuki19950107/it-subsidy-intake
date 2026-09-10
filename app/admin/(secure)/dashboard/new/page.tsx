@@ -1,7 +1,11 @@
 import { NewUrlForm } from './NewUrlForm';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { listActiveVendors } from '@/lib/vendors/queries';
 
-export default function NewApplicationPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function NewApplicationPage() {
+  const vendors = await listActiveVendors();
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
@@ -16,7 +20,7 @@ export default function NewApplicationPage() {
           <CardDescription>管理メモは任意です（案件識別のため）</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewUrlForm />
+          <NewUrlForm vendors={vendors} />
         </CardContent>
       </Card>
     </div>

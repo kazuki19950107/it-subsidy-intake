@@ -15,6 +15,7 @@ const adminPatchSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => null)),
   intake_message: z.string().max(2000).nullable().optional(),
+  vendor_contact_id: z.string().uuid().nullable().optional(),
 });
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

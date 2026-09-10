@@ -5,11 +5,14 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceRoleClient();
   const status = req.nextUrl.searchParams.get('status');
   const q = req.nextUrl.searchParams.get('q');
+  const vendor = req.nextUrl.searchParams.get('vendor');
   let query = supabase
     .from('applications')
-    .select('*')
+    .select('*, vendor:vendor_contacts(id, name)')
     .order('updated_at', { ascending: false });
   if (status) query = query.eq('status', status as never);
+  if (vendor === 'none') query = query.is('vendor_contact_id', null);
+  else if (vendor) query = query.eq('vendor_contact_id', vendor);
   if (q) {
     query = query.or(
       `applicant_name.ilike.%${q}%,company_name.ilike.%${q}%,email.ilike.%${q}%`,

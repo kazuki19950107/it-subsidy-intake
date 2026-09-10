@@ -62,6 +62,27 @@ export interface Application {
   updated_at: string;
 }
 
+export interface VendorContact {
+  id: string;
+  name: string;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  url: string | null;
+  memo: string | null;
+  portal_login_id: string | null;
+  /** AES-GCM 暗号化済み。API から平文を返さないこと */
+  portal_password_enc: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 画面・API に渡す形。暗号化パスワードは除外し、設定有無のみ持つ */
+export type VendorPublic = Omit<VendorContact, 'portal_password_enc'> & {
+  has_portal_password: boolean;
+};
+
 export interface Document {
   id: string;
   application_id: string;
@@ -128,28 +149,9 @@ export interface Database {
         }>;
       };
       vendor_contacts: {
-        Row: {
-          id: string;
-          name: string;
-          email: string | null;
-          phone: string | null;
-          active: boolean;
-          created_at: string;
-        };
-        Insert: Partial<{
-          id: string;
-          name: string;
-          email: string | null;
-          phone: string | null;
-          active: boolean;
-        }>;
-        Update: Partial<{
-          id: string;
-          name: string;
-          email: string | null;
-          phone: string | null;
-          active: boolean;
-        }>;
+        Row: VendorContact;
+        Insert: Partial<VendorContact> & { name: string };
+        Update: Partial<VendorContact>;
       };
       audit_logs: {
         Row: {

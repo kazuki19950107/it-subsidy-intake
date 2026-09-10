@@ -7,9 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Check } from 'lucide-react';
+import Link from 'next/link';
+import type { VendorContact } from '@/lib/supabase/types';
 
-export function NewUrlForm() {
+export function NewUrlForm({ vendors }: { vendors: Pick<VendorContact, 'id' | 'name'>[] }) {
   const [memo, setMemo] = useState('');
+  const [vendorId, setVendorId] = useState('');
   const [recipientLabel, setRecipientLabel] = useState('');
   const [subsidyProgramLabel, setSubsidyProgramLabel] = useState('');
   const [applicantDeadline, setApplicantDeadline] = useState(''); // datetime-local
@@ -36,6 +39,7 @@ export function NewUrlForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memo: memo || null,
+          vendor_contact_id: vendorId || null,
           recipient_label: recipientLabel || null,
           subsidy_program_label: subsidyProgramLabel || null,
           applicant_deadline: deadlineIso,
@@ -65,6 +69,7 @@ export function NewUrlForm() {
   const reset = () => {
     setResult(null);
     setMemo('');
+    setVendorId('');
     setRecipientLabel('');
     setSubsidyProgramLabel('');
     setApplicantDeadline('');
@@ -91,6 +96,35 @@ export function NewUrlForm() {
             />
             <p className="text-xs text-mute">
               案件識別・確認用。<strong>申請者には表示されません</strong>。
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vendor">利用ベンダー（任意）</Label>
+            <select
+              id="vendor"
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              className="flex h-11 w-full rounded-md border border-rule bg-white px-3 py-2 text-base text-charcoal focus:outline-none focus:ring-2 focus:ring-teal"
+            >
+              <option value="">未設定（後から設定できます）</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-mute">
+              この案件で利用するベンダー。申請者には表示されません。
+              {vendors.length === 0 && (
+                <>
+                  {' '}
+                  <Link href="/admin/vendors" className="text-teal hover:underline">
+                    ベンダー管理
+                  </Link>
+                  から登録できます。
+                </>
+              )}
             </p>
           </div>
 

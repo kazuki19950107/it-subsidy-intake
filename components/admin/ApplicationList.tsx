@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Building2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -10,6 +11,7 @@ import { formatJpDate } from '@/lib/utils/dateCheck';
 export type ApplicationWithProgress = Application & {
   _progress: number;
   _step: string;
+  _vendorName?: string | null;
 };
 
 const STATUS_LABEL: Record<string, { label: string; variant: 'default' | 'muted' | 'success' | 'warning' | 'destructive' | 'secondary' }> = {
@@ -29,11 +31,17 @@ const STEP_LABEL: Record<string, string> = {
   complete: '完了',
 };
 
-export function ApplicationList({ applications }: { applications: ApplicationWithProgress[] }) {
+export function ApplicationList({
+  applications,
+  emptyMessage,
+}: {
+  applications: ApplicationWithProgress[];
+  emptyMessage?: string;
+}) {
   if (applications.length === 0) {
     return (
       <div className="text-center py-16 text-mute">
-        まだ申請がありません。
+        {emptyMessage ?? 'まだ申請がありません。'}
       </div>
     );
   }
@@ -47,6 +55,7 @@ export function ApplicationList({ applications }: { applications: ApplicationWit
               <TableHead>ステータス</TableHead>
               <TableHead>申請者</TableHead>
               <TableHead>種別</TableHead>
+              <TableHead>ベンダー</TableHead>
               <TableHead className="w-[180px]">進捗</TableHead>
               <TableHead>送信日時</TableHead>
               <TableHead>更新</TableHead>
@@ -80,6 +89,16 @@ export function ApplicationList({ applications }: { applications: ApplicationWit
                       : a.applicant_type === 'sole_proprietor'
                         ? '個人事業主'
                         : '未選択'}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {a._vendorName ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-mute shrink-0" />
+                        <span className="truncate max-w-[160px]">{a._vendorName}</span>
+                      </span>
+                    ) : (
+                      <span className="text-mute text-xs">未設定</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
@@ -137,6 +156,12 @@ export function ApplicationList({ applications }: { applications: ApplicationWit
                   <span className="text-mute">・</span>
                   <span className="text-charcoal">{STEP_LABEL[a._step] ?? a._step}</span>
                 </div>
+                {a._vendorName && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-charcoal">
+                    <Building2 className="w-3.5 h-3.5 text-mute shrink-0" />
+                    <span className="truncate">{a._vendorName}</span>
+                  </div>
+                )}
 
                 <div className="mt-2 space-y-1">
                   <ProgressBar percent={a._progress} size="sm" showPercent={false} />

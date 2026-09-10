@@ -17,6 +17,7 @@ const createSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => null)),
   intake_message: z.string().max(2000).nullable().optional(),
+  vendor_contact_id: z.string().uuid().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
       subsidy_program_label: body.subsidy_program_label ?? null,
       applicant_deadline: body.applicant_deadline ?? null,
       intake_message: body.intake_message ?? null,
+      vendor_contact_id: body.vendor_contact_id ?? null,
     })
     .select()
     .single();

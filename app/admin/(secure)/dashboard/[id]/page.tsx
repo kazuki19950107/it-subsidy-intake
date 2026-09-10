@@ -16,8 +16,10 @@ import { AgentShareBlock } from './AgentShareBlock';
 import { AdminMemoEditor } from './AdminMemoEditor';
 import { IntakeContentEditor } from './IntakeContentEditor';
 import { DeleteApplicationControl } from './DeleteApplicationControl';
+import { VendorSelector } from './VendorSelector';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { computeProgress } from '@/lib/utils/progress';
+import { getVendor, listActiveVendors } from '@/lib/vendors/queries';
 
 export default async function ApplicationDetailPage({
   params,
@@ -40,6 +42,11 @@ export default async function ApplicationDetailPage({
     .eq('application_id', id)
     .order('uploaded_at', { ascending: true });
   const documents = (docs ?? []) as Document[];
+
+  const [vendors, currentVendor] = await Promise.all([
+    listActiveVendors(),
+    application.vendor_contact_id ? getVendor(application.vendor_contact_id) : Promise.resolve(null),
+  ]);
 
   const byType = documents.reduce<Record<string, Document>>((acc, d) => {
     acc[d.doc_type] = d;
@@ -113,6 +120,12 @@ export default async function ApplicationDetailPage({
         applicationId={application.id}
         initialShareToken={application.share_token}
         initialExpiresAt={application.share_token_expires_at}
+      />
+
+      <VendorSelector
+        applicationId={application.id}
+        vendors={vendors}
+        current={currentVendor}
       />
 
       <AdminMemoEditor

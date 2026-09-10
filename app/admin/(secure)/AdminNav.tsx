@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus, Download, Menu, X, LogOut } from 'lucide-react';
+import { FileText, Plus, Download, Menu, X, LogOut, Building2 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: '申請一覧', icon: FileText, external: false },
   { href: '/admin/dashboard/new', label: '新規URL発行', icon: Plus, external: false },
+  { href: '/admin/vendors', label: 'ベンダー管理', icon: Building2, external: false },
   { href: '/api/admin/export?format=csv', label: 'CSV', icon: Download, external: true },
 ];
 

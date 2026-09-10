@@ -8,10 +8,15 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('applications')
-    .select('*')
+    .select('*, vendor:vendor_contacts(name)')
     .order('updated_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const apps = data ?? [];
+  const apps = (data ?? []).map((a) => {
+    const { vendor, ...rest } = a as Record<string, unknown> & {
+      vendor: { name: string } | null;
+    };
+    return { ...rest, vendor_name: vendor?.name ?? '' };
+  });
 
   if (format === 'csv') {
     const headers = [
@@ -23,6 +28,7 @@ export async function GET(req: NextRequest) {
       'email',
       'phone',
       'gbiz_id_status',
+      'vendor_name',
       'submitted_at',
       'created_at',
     ];
