@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Building2, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { PortalPasswordReveal } from '@/components/admin/PortalPasswordReveal';
+import { PortalSyncButton } from '@/components/admin/PortalSyncButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -323,6 +324,9 @@ function PortalInfo({ vendor: v }: { vendor: VendorWithCount }) {
         <span className="inline-flex items-center gap-1">
           PW: <PortalPasswordReveal vendorId={v.id} compact />
         </span>
+      )}
+      {v.active && v.portal_login_id && v.has_portal_password && (
+        <PortalSyncButton vendorId={v.id} vendorName={v.name} variant="ghost" label="同期" />
       )}
     </div>
   );

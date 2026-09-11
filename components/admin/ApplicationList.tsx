@@ -14,6 +14,15 @@ export type ApplicationWithProgress = Application & {
   _vendorName?: string | null;
 };
 
+function portalVariant(s: string | null): 'default' | 'muted' | 'success' | 'warning' | 'destructive' | 'secondary' {
+  if (!s) return 'muted';
+  if (/不採択|破棄|辞退|取下/.test(s)) return 'destructive';
+  if (/未報告|要訂正|不備|差し戻し|未完了/.test(s)) return 'warning';
+  if (/報告済|完了|承認済|交付決定/.test(s)) return 'success';
+  if (/審査中|申請中|入力中|待ち/.test(s)) return 'secondary';
+  return 'default';
+}
+
 const STATUS_LABEL: Record<string, { label: string; variant: 'default' | 'muted' | 'success' | 'warning' | 'destructive' | 'secondary' }> = {
   draft: { label: '入力中', variant: 'muted' },
   analyzing: { label: '解析中', variant: 'secondary' },
@@ -56,6 +65,7 @@ export function ApplicationList({
               <TableHead>申請者</TableHead>
               <TableHead>種別</TableHead>
               <TableHead>ベンダー</TableHead>
+              <TableHead>ポータル</TableHead>
               <TableHead className="w-[180px]">進捗</TableHead>
               <TableHead>送信日時</TableHead>
               <TableHead>更新</TableHead>
@@ -98,6 +108,22 @@ export function ApplicationList({
                       </span>
                     ) : (
                       <span className="text-mute text-xs">未設定</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {a.portal_status ? (
+                      <div className="space-y-0.5">
+                        <Badge variant={portalVariant(a.portal_status)}>{a.portal_status}</Badge>
+                        {a.portal_status_updated_on && (
+                          <div className="text-[11px] text-mute">
+                            {formatJpDate(a.portal_status_updated_on)}
+                          </div>
+                        )}
+                      </div>
+                    ) : a.portal_application_no ? (
+                      <span className="text-xs text-mute font-mono">{a.portal_application_no}</span>
+                    ) : (
+                      <span className="text-mute text-xs">-</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -160,6 +186,12 @@ export function ApplicationList({
                   <div className="flex items-center gap-1 mt-1 text-xs text-charcoal">
                     <Building2 className="w-3.5 h-3.5 text-mute shrink-0" />
                     <span className="truncate">{a._vendorName}</span>
+                  </div>
+                )}
+                {a.portal_status && (
+                  <div className="flex items-center gap-2 mt-1 text-xs">
+                    <span className="text-mute">ポータル</span>
+                    <Badge variant={portalVariant(a.portal_status)}>{a.portal_status}</Badge>
                   </div>
                 )}
 

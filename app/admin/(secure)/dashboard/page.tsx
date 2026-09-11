@@ -33,6 +33,8 @@ function matchesQuery(r: DashboardRow, q: string): boolean {
     r.admin_memo,
     r.subsidy_program_label,
     r.vendor?.name,
+    r.portal_application_no,
+    r.portal_status,
   ]
     .filter(Boolean)
     .some((f) => String(f).toLowerCase().includes(needle));

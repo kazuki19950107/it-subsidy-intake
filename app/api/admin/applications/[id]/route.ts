@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { auditLog } from '@/lib/utils/logger';
+import { normalizeApplicationNo } from '@/lib/portal/normalize';
 import { z } from 'zod';
 
 // 管理者が編集可能なフィールドのみ許容
@@ -16,6 +17,12 @@ const adminPatchSchema = z.object({
     .or(z.literal('').transform(() => null)),
   intake_message: z.string().max(2000).nullable().optional(),
   vendor_contact_id: z.string().uuid().nullable().optional(),
+  portal_application_no: z
+    .string()
+    .max(50)
+    .nullable()
+    .optional()
+    .transform((v) => normalizeApplicationNo(v)),
 });
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -81,9 +88,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const supabase = createServiceRoleClient();
+  const update: Record<string, unknown> = { ...parsed.data };
+
+  // 交付申請番号を変更したら、取込済みのポータル案件からステータスを即時反映する
+  if ('portal_application_no' in parsed.data) {
+    const no = parsed.data.portal_application_no;
+    if (no) {
+      const { data: pc } = await supabase
+        .from('portal_cases')
+        .select('status, status_updated_on, last_seen_at')
+        .eq('application_no', no)
+        .order('last_seen_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      update.portal_status = pc?.status ?? null;
+      update.portal_status_updated_on = pc?.status_updated_on ?? null;
+      update.portal_synced_at = pc ? pc.last_seen_at : null;
+    } else {
+      update.portal_status = null;
+      update.portal_status_updated_on = null;
+      update.portal_synced_at = null;
+    }
+  }
+
   const { data, error } = await supabase
     .from('applications')
-    .update(parsed.data)
+    .update(update)
     .eq('id', id)
     .select()
     .maybeSingle();

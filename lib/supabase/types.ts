@@ -54,6 +54,11 @@ export interface Application {
   intake_message: string | null;
   share_token: string | null;
   share_token_expires_at: string | null;
+  /** ポータルの交付申請番号（突合キー。例: KSN06-0057481） */
+  portal_application_no: string | null;
+  portal_status: string | null;
+  portal_status_updated_on: string | null;
+  portal_synced_at: string | null;
   submitted_at: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;
@@ -82,6 +87,35 @@ export interface VendorContact {
 export type VendorPublic = Omit<VendorContact, 'portal_password_enc'> & {
   has_portal_password: boolean;
 };
+
+/** IT導入支援事業者ポータルから取得した案件 */
+export interface PortalCase {
+  id: string;
+  vendor_contact_id: string;
+  application_no: string;
+  applicant_name: string | null;
+  prefecture: string | null;
+  round: string | null;
+  application_type: string | null;
+  status: string | null;
+  status_updated_on: string | null;
+  handler_name: string | null;
+  raw: Record<string, unknown> | null;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface PortalSyncRun {
+  id: string;
+  vendor_contact_id: string;
+  trigger: 'manual' | 'cron';
+  status: 'running' | 'success' | 'error';
+  started_at: string;
+  finished_at: string | null;
+  rows_count: number | null;
+  matched_count: number | null;
+  error: string | null;
+}
 
 export interface Document {
   id: string;
@@ -152,6 +186,16 @@ export interface Database {
         Row: VendorContact;
         Insert: Partial<VendorContact> & { name: string };
         Update: Partial<VendorContact>;
+      };
+      portal_cases: {
+        Row: PortalCase;
+        Insert: Partial<PortalCase> & { vendor_contact_id: string; application_no: string };
+        Update: Partial<PortalCase>;
+      };
+      portal_sync_runs: {
+        Row: PortalSyncRun;
+        Insert: Partial<PortalSyncRun> & { vendor_contact_id: string; trigger: 'manual' | 'cron' };
+        Update: Partial<PortalSyncRun>;
       };
       audit_logs: {
         Row: {
