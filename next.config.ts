@@ -3,6 +3,12 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // Playwright と同梱 Chromium はバンドルせず、実行時に node_modules から読む
   serverExternalPackages: ['playwright-core', '@sparticuz/chromium'],
+  // 同梱 Chromium の実体（bin/ 配下の圧縮バイナリ）はファイル追跡で拾われないため、
+  // ポータル同期を行うルートに明示的に同梱する
+  outputFileTracingIncludes: {
+    '/api/admin/vendors/[id]/portal-sync': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    '/api/cron/portal-sync': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+  },
   images: {
     remotePatterns: [
       {
