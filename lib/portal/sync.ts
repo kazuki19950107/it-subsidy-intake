@@ -12,6 +12,7 @@ export type SyncResult = {
   rows: number;
   matched: number;
   durationMs: number;
+  warnings: string[];
 };
 
 /** ポータルの認証情報を持つ有効なベンダー一覧 */
@@ -58,7 +59,7 @@ export async function syncVendorPortal(
 
   try {
     const password = decryptSecret(vendor.portal_password_enc);
-    const rows = await scrapePortalCases(vendor.portal_login_id, password);
+    const { rows, warnings, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password);
     const now = new Date().toISOString();
 
     if (rows.length > 0) {
@@ -112,6 +113,8 @@ export async function syncVendorPortal(
         finished_at: now,
         rows_count: rows.length,
         matched_count: matched,
+        // 成功扱いだが一部年度で失敗した場合はここに残す（画面で注意表示）
+        error: warnings.length > 0 ? `一部の年度で失敗: ${warnings.join(' / ')}`.slice(0, 2000) : null,
       })
       .eq('id', runId);
 
@@ -120,7 +123,7 @@ export async function syncVendorPortal(
       action: 'portal.synced',
       targetType: 'vendor_contact',
       targetId: vendorId,
-      metadata: { rows: rows.length, matched, trigger },
+      metadata: { rows: rows.length, matched, trigger, yearsSearched, warnings },
     });
 
     return {
@@ -130,6 +133,7 @@ export async function syncVendorPortal(
       rows: rows.length,
       matched,
       durationMs: Date.now() - startedAt,
+      warnings,
     };
   } catch (e) {
     const message =

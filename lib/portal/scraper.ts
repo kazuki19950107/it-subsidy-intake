@@ -72,8 +72,13 @@ async function clickIfVisible(page: Page, text: string | RegExp, timeout = 1_500
   const loc = visibleText(page, text).first();
   const visible = await loc.isVisible({ timeout }).catch(() => false);
   if (!visible) return false;
-  await loc.click();
-  return true;
+  // 見えていても他要素に覆われている場合があるので、長く待たずに諦める
+  try {
+    await loc.click({ timeout: 3_000 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 一覧テーブルの行を読み取る。列順は 2026 年度ポータルの表示順に依存。 */
@@ -86,6 +91,16 @@ async function readRows(page: Page): Promise<string[][]> {
 async function firstRowNo(page: Page): Promise<string> {
   return page
     .$eval('table tbody tr td', (td) => ((td as HTMLElement).innerText ?? '').trim())
+    .catch(() => '');
+}
+
+/** 表示中の結果を識別する署名（先頭行の交付申請番号 + 行数）。年度を切り替えた際の使い回し検知用 */
+async function resultSignature(page: Page): Promise<string> {
+  return page
+    .$$eval('table tbody tr', (trs) => {
+      const first = trs[0]?.children[1] as HTMLElement | undefined;
+      return `${(first?.innerText ?? '').trim()}#${trs.length}`;
+    })
     .catch(() => '');
 }
 
@@ -183,6 +198,7 @@ async function listFiscalYears(page: Page): Promise<string[]> {
     Array.from(
       new Set(
         els
+          .filter((e) => (e as HTMLElement).offsetParent !== null && e.getClientRects().length > 0)
           .map((e) => (e.textContent ?? '').trim())
           .filter((t) => /^\d{4}年度$/.test(t)),
       ),
@@ -198,37 +214,74 @@ const NO_HIT_RE =
  * 指定年度で「コンソーシアム全体で検索」を実行し、結果テーブルが出るまで待つ。
  * 0 件のときは false。
  */
-async function runSearch(page: Page, fiscalYear: string): Promise<boolean> {
+async function runSearch(page: Page, fiscalYear: string, prevSignature: string): Promise<boolean> {
   // 検索条件タブへ
   await clickIfVisible(page, '検索条件', 1_000);
   await page.waitForTimeout(400);
 
-  // 申請年度（必須）
-  await visibleText(page, fiscalYear).first().click();
-  await page.waitForTimeout(200);
+  // 申請年度（必須）。タブ切替直後は描画が遅れることがあるので一度だけやり直す
+  const yearLabel = visibleText(page, fiscalYear).first();
+  try {
+    await yearLabel.click({ timeout: 8_000 });
+  } catch {
+    await clickIfVisible(page, '検索条件', 1_000);
+    await page.waitForTimeout(800);
+    try {
+      await yearLabel.click({ timeout: 8_000 });
+    } catch {
+      await debugShot(page, `search-${fiscalYear}-year-missing`);
+      throw new PortalError(`申請年度「${fiscalYear}」を選択できませんでした`, 'list');
+    }
+  }
+  await page.waitForTimeout(1_200);
+
+  // 年度を選んだ時点でポータルが自動検索して結果タブに切り替わることがある。
+  // 前回と同じ結果（使い回し）でなければそのまま採用する
+  if (await hasVisibleRows(page)) {
+    const sig = await resultSignature(page);
+    if (sig && sig !== prevSignature) {
+      await debugShot(page, `search-${fiscalYear}-rows`);
+      return true;
+    }
+  }
 
   await debugShot(page, `search-${fiscalYear}-before`);
 
-  // コンソーシアム全体で検索（無ければ通常の検索）
-  const wide = visibleText(page, 'コンソーシアム全体で検索').first();
-  if (await wide.isVisible().catch(() => false)) {
-    await wide.click();
-  } else {
-    await visibleText(page, '検索').last().click();
+  // コンソーシアム全体で検索（幹事社アカウントのみ表示。無ければ通常の検索）
+  // クリック後に画面が再描画されて Playwright 側の完了待ちが長引くことがあるため、
+  // 短いタイムアウトで打ち切り、結果テーブルの出現確認に進む
+  const wideBtn = page.locator('a, button', { hasText: /^\s*コンソーシアム全体で検索\s*$/ }).locator('visible=true').first();
+  const searchBtn = page.locator('a, button', { hasText: /^\s*検索\s*$/ }).locator('visible=true').last();
+  const target = (await wideBtn.isVisible().catch(() => false)) ? wideBtn : searchBtn;
+  if (!(await target.isVisible().catch(() => false))) {
+    // ボタンが無いのに結果が出ているなら自動検索済みとみなす
+    if (await hasVisibleRows(page)) {
+      await debugShot(page, `search-${fiscalYear}-rows`);
+      return true;
+    }
+    await debugShot(page, `search-${fiscalYear}-no-button`);
+    throw new PortalError(`検索ボタンが見つかりません（${fiscalYear}）`, 'list');
+  }
+  try {
+    await target.click({ timeout: 10_000 });
+  } catch {
+    if (!(await hasVisibleRows(page))) {
+      await target.dispatchEvent('click').catch(() => {});
+    }
   }
 
   const deadline = Date.now() + 150_000;
   let confirmed = false;
   while (Date.now() < deadline) {
-    // 「時間がかかる場合がありますが、よろしいですか？」→ はい
+    if (await hasVisibleRows(page)) {
+      await debugShot(page, `search-${fiscalYear}-rows`);
+      return true;
+    }
+    // 「時間がかかる場合がありますが、よろしいですか？」→ はい（コンソーシアム検索時のみ出る）
     if (!confirmed && (await clickIfVisible(page, 'はい', 300))) {
       confirmed = true;
       await page.waitForTimeout(800);
       continue;
-    }
-    if (await hasVisibleRows(page)) {
-      await debugShot(page, `search-${fiscalYear}-rows`);
-      return true;
     }
     // 結果タブが自動で開かない場合に備える
     const resultTab = visibleText(page, '検索結果').first();
@@ -330,7 +383,14 @@ function toPortalRow(cells: string[], fiscalYear: string): PortalRow | null {
  * ポータルにログインし、「保存済交付申請検索」を申請年度ごとに
  * 「コンソーシアム全体で検索」して全件を取得する。交付申請番号で重複排除済み。
  */
-export async function scrapePortalCases(loginId: string, password: string): Promise<PortalRow[]> {
+export type ScrapeResult = {
+  rows: PortalRow[];
+  /** 年度単位で失敗したが全体は続行した場合のメッセージ */
+  warnings: string[];
+  yearsSearched: string[];
+};
+
+export async function scrapePortalCases(loginId: string, password: string): Promise<ScrapeResult> {
   let browser;
   try {
     browser = await launchBrowser();
@@ -355,16 +415,33 @@ export async function scrapePortalCases(loginId: string, password: string): Prom
     }
 
     const map = new Map<string, PortalRow>();
+    const warnings: string[] = [];
+    const yearsSearched: string[] = [];
     let rowsSeen = 0;
+    let prevSignature = '';
     for (const year of years) {
-      const hit = await runSearch(page, year);
-      if (!hit) continue;
-      const cells = await collectAllRows(page);
-      rowsSeen += cells.length;
-      for (const c of cells) {
-        const row = toPortalRow(c, year);
-        if (row && !map.has(row.application_no)) map.set(row.application_no, row);
+      try {
+        const hit = await runSearch(page, year, prevSignature);
+        yearsSearched.push(year);
+        if (!hit) continue;
+        prevSignature = await resultSignature(page);
+        const cells = await collectAllRows(page);
+        rowsSeen += cells.length;
+        for (const c of cells) {
+          const row = toPortalRow(c, year);
+          if (row && !map.has(row.application_no)) map.set(row.application_no, row);
+        }
+      } catch (e) {
+        // 1 年度の失敗で全体を捨てない。取れた年度分は保存し、失敗は警告として残す
+        const msg = e instanceof Error ? e.message : String(e);
+        warnings.push(`${year}: ${msg.split('\n')[0].slice(0, 200)}`);
+        await debugShot(page, `search-${year}-failed`);
+        // 画面状態を戻してから次の年度へ
+        await clickIfVisible(page, '検索条件', 1_000).catch(() => false);
       }
+    }
+    if (yearsSearched.length === 0) {
+      throw new PortalError(`どの年度も検索できませんでした: ${warnings.join(' / ')}`, 'list');
     }
     if (rowsSeen > 0 && map.size === 0) {
       throw new PortalError(
@@ -376,7 +453,7 @@ export async function scrapePortalCases(loginId: string, password: string): Prom
     // セッションを残さない
     await visibleText(page, 'ログアウト').first().click({ timeout: 5_000 }).catch(() => {});
 
-    return Array.from(map.values());
+    return { rows: Array.from(map.values()), warnings, yearsSearched };
   } finally {
     await browser.close().catch(() => {});
   }

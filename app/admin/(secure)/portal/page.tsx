@@ -11,6 +11,15 @@ export default async function PortalPage() {
     listSyncableVendors(),
     latestRunsByVendor(),
   ]);
+  const yearCounts = new Map<string, number>();
+  for (const c of cases) {
+    const y = c.fiscal_year ?? '年度不明';
+    yearCounts.set(y, (yearCounts.get(y) ?? 0) + 1);
+  }
+  const yearSummary = Array.from(yearCounts.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([y, n]) => `${y} ${n}件`)
+    .join('・');
 
   return (
     <div className="space-y-6">
@@ -20,7 +29,8 @@ export default async function PortalPage() {
           IT導入支援事業者ポータルの「保存済交付申請検索」から取り込んだ案件です。毎朝6時に自動取得するほか、手動でも更新できます。
         </p>
         <p className="text-xs text-mute mt-1">
-          取込済み {cases.length}件・申請と紐づき済み {cases.filter((c) => c.application).length}件
+          取込済み {cases.length}件（{yearSummary || '年度不明'}）・申請と紐づき済み{' '}
+          {cases.filter((c) => c.application).length}件
         </p>
       </div>
 

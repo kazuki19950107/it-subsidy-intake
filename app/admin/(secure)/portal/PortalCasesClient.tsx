@@ -41,10 +41,18 @@ export function PortalCasesClient({
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [vendorId, setVendorId] = useState('');
+  const [year, setYear] = useState('');
   const [linkedOnly, setLinkedOnly] = useState(false);
 
   const statuses = useMemo(
     () => Array.from(new Set(cases.map((c) => c.status).filter(Boolean) as string[])).sort(),
+    [cases],
+  );
+  const years = useMemo(
+    () =>
+      Array.from(new Set(cases.map((c) => c.fiscal_year).filter(Boolean) as string[]))
+        .sort()
+        .reverse(),
     [cases],
   );
 
@@ -52,7 +60,8 @@ export function PortalCasesClient({
     const needle = q.trim().toLowerCase();
     return cases.filter((c) => {
       if (status && c.status !== status) return false;
-      if (vendorId && c.vendor_contact_id !== vendorId) return false;
+      if (year && c.fiscal_year !== year) return false;
+      if (vendorId && !c.source_vendor_ids.includes(vendorId)) return false;
       if (linkedOnly && !c.application) return false;
       if (!needle) return true;
       return [
@@ -63,13 +72,14 @@ export function PortalCasesClient({
         c.application_type,
         c.status,
         c.handler_name,
+        c.fiscal_year,
         c.application?.company_name,
         c.application?.applicant_name,
       ]
         .filter(Boolean)
         .some((f) => String(f).toLowerCase().includes(needle));
     });
-  }, [cases, q, status, vendorId, linkedOnly]);
+  }, [cases, q, status, year, vendorId, linkedOnly]);
 
   return (
     <div className="space-y-4">
@@ -98,6 +108,12 @@ export function PortalCasesClient({
                       v.lastRun.status === 'success' ? (
                         <>
                           前回 {formatJpDate(v.lastRun.finished_at ?? v.lastRun.started_at)} に {v.lastRun.rows_count ?? 0}件取得
+                          {v.lastRun.error && (
+                            <span className="text-warn inline-flex items-center gap-1 ml-2">
+                              <AlertTriangle className="w-3 h-3" />
+                              {v.lastRun.error}
+                            </span>
+                          )}
                         </>
                       ) : v.lastRun.status === 'running' ? (
                         <>同期中（{formatJpDate(v.lastRun.started_at)} 開始）</>
@@ -141,6 +157,21 @@ export function PortalCasesClient({
             </button>
           )}
         </div>
+        {years.length > 0 && (
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="h-11 rounded-md border border-rule bg-white px-3 text-base text-charcoal focus:outline-none focus:ring-2 focus:ring-teal sm:w-40"
+            aria-label="申請年度で絞り込み"
+          >
+            <option value="">年度: すべて</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
@@ -179,7 +210,7 @@ export function PortalCasesClient({
           紐づき済みのみ
         </label>
       </div>
-      {(q || status || vendorId || linkedOnly) && (
+      {(q || status || year || vendorId || linkedOnly) && (
         <div className="text-xs text-mute">
           全{cases.length}件中 <span className="font-semibold text-ink">{filtered.length}件</span> を表示
         </div>
@@ -201,7 +232,7 @@ export function PortalCasesClient({
                     <TableHead>交付申請番号</TableHead>
                     <TableHead>申請者名</TableHead>
                     <TableHead>都道府県</TableHead>
-                    <TableHead>募集回</TableHead>
+                    <TableHead>年度 / 募集回</TableHead>
                     <TableHead>ステータス</TableHead>
                     <TableHead>更新日</TableHead>
                     <TableHead>担当事業者</TableHead>
@@ -219,14 +250,24 @@ export function PortalCasesClient({
                         )}
                       </TableCell>
                       <TableCell className="text-sm">{c.prefecture ?? '-'}</TableCell>
-                      <TableCell className="text-sm">{c.round ?? '-'}</TableCell>
+                      <TableCell className="text-sm">
+                        <div>{c.fiscal_year ?? '-'}</div>
+                        <div className="text-[11px] text-mute">{c.round ?? '-'}</div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(c.status)}>{c.status ?? '-'}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-mute">
                         {c.status_updated_on ? formatJpDate(c.status_updated_on) : '-'}
                       </TableCell>
-                      <TableCell className="text-sm">{c.handler_name ?? '-'}</TableCell>
+                      <TableCell className="text-sm">
+                        <div>{c.handler_name ?? '-'}</div>
+                        {c.source_vendor_names.length > 1 && (
+                          <div className="text-[11px] text-mute">
+                            取得元: {c.source_vendor_names.join('・')}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {c.application ? (
                           <Link
@@ -256,7 +297,7 @@ export function PortalCasesClient({
                     <Badge variant={statusVariant(c.status)}>{c.status ?? '-'}</Badge>
                   </div>
                   <div className="text-xs text-mute">
-                    {[c.prefecture, c.round, c.handler_name].filter(Boolean).join('・')}
+                    {[c.fiscal_year, c.prefecture, c.round, c.handler_name].filter(Boolean).join('・')}
                     {c.status_updated_on && ` ・ ${formatJpDate(c.status_updated_on)}`}
                   </div>
                   {c.application ? (
