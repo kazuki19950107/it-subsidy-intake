@@ -8,7 +8,7 @@ import {
 } from './financialStatements';
 import { extractIdDocument, validateIdDocument } from './idDocument';
 import { extractTaxReturn, validateTaxReturn } from './taxReturn';
-import { extractBlueForm } from './blueForm';
+import { extractBlueForm, validateBlueForm } from './blueForm';
 import { extractETaxReceipt } from './eTaxReceipt';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 
@@ -84,7 +84,7 @@ export async function runExtractor(
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
-        validationErrors: [],
+        validationErrors: validateBlueForm(r.data),
         usage: r.usage,
       };
     }

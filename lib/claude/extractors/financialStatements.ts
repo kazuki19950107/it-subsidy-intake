@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { extractFromText } from './base';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
+import { daysSince } from '@/lib/utils/dateCheck';
 
 export const FinancialStatementsSchema = z.object({
   document_types_detected: z.array(z.enum(['PL', 'SGA', 'BS', 'unknown'])),
@@ -13,10 +14,14 @@ export const FinancialStatementsSchema = z.object({
   total_assets: z.number().nullable(),
   total_liabilities: z.number().nullable(),
   net_assets: z.number().nullable(),
+  fiscal_period_count: z.number().nullable().optional(),
   _confidence: z.number().optional(),
 });
 
 export type FinancialStatementsData = z.infer<typeof FinancialStatementsSchema>;
+
+// 決算終了日から申告期限（2ヶ月）＋延長・取得の猶予を見て、これより古ければ直近期ではないと判断する
+const LATEST_PERIOD_MAX_DAYS = 456; // 約15ヶ月
 
 export const SYSTEM_PROMPT = `あなたは日本の会社決算書の解析専門家です。
 OCRで抽出されたテキストから、指定されたJSONスキーマに従って情報を正確に抽出してください。
@@ -45,6 +50,7 @@ export const USER_PROMPT = `以下のOCRテキストは会社の決算書です�
 - total_assets: 資産合計（円）
 - total_liabilities: 負債合計（円）
 - net_assets: 純資産合計（円）
+- fiscal_period_count: テキストに含まれる決算期の数（別々の期の決算書が何期分含まれているか。同じ表の中の「前期」比較欄は数えない）
 - _confidence: 全体の抽出信頼度（0.0〜1.0）
 
 JSON形式のみで出力してください。`;
@@ -59,7 +65,7 @@ export async function extractFinancialStatements(text: string) {
 }
 
 export function validateFinancialStatements(
-  data: FinancialStatementsData,
+  data: Partial<FinancialStatementsData>,
 ): CrossCheckResult[] {
   const errors: CrossCheckResult[] = [];
   const detected = new Set(data.document_types_detected ?? []);
@@ -101,17 +107,38 @@ export function validateFinancialStatements(
     });
   }
 
-  // PL ありかつ営業利益が取れていない → 警告（販管費明細が別ページの可能性）
-  if (
-    detected.has('PL') &&
-    !detected.has('SGA') &&
-    data.operating_profit == null
-  ) {
+  // 販管費（販売費及び一般管理費）の内訳は必須
+  if (detected.has('PL') && !detected.has('SGA')) {
+    errors.push({
+      level: 'error',
+      field: 'document_types_detected',
+      message:
+        '決算書に販管費（販売費及び一般管理費）の内訳が見つかりません。販管費の内訳ページも含めてアップロードしてください。',
+    });
+  }
+
+  // 直近1期分であること
+  if (data.fiscal_period_to) {
+    const days = daysSince(data.fiscal_period_to);
+    if (!isNaN(days) && days > LATEST_PERIOD_MAX_DAYS) {
+      errors.push({
+        level: 'error',
+        field: 'fiscal_period_to',
+        message: `決算期末（${data.fiscal_period_to}）から${days}日経過しており、直近期の決算書ではない可能性があります。直近1期分の決算書をアップロードしてください。`,
+      });
+    }
+  } else {
     errors.push({
       level: 'warning',
-      field: 'operating_profit',
-      message:
-        '営業利益が読み取れませんでした。決算書に販管費明細ページが含まれているかご確認ください。',
+      field: 'fiscal_period_to',
+      message: '決算期間が読み取れませんでした。直近1期分の決算書かご確認ください。',
+    });
+  }
+  if (data.fiscal_period_count != null && data.fiscal_period_count > 1) {
+    errors.push({
+      level: 'warning',
+      field: 'fiscal_period_count',
+      message: `決算書が${data.fiscal_period_count}期分含まれているようです。提出は直近1期分のみで構いません。`,
     });
   }
 

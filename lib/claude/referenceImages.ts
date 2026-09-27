@@ -46,7 +46,7 @@ export const DOC_REFERENCE_IMAGES: Partial<Record<DocType, ReferenceImage>> = {
     notes: [
       '確定申告書一式の中にあります',
       '赤枠部分の数字が必要です',
-      '白色申告の収支内訳書でも提出可能です',
+      '青色申告決算書のみ受け付けます（白色申告の収支内訳書は不可）',
     ],
   },
   e_tax_receipt: {

@@ -1,4 +1,13 @@
 import { daysSince } from '@/lib/utils/dateCheck';
+import { DOC_TYPE_LABELS } from '@/lib/claude/docTypes';
+import {
+  validateFinancialStatements,
+  type FinancialStatementsData,
+} from '@/lib/claude/extractors/financialStatements';
+import type { DocType } from '@/lib/supabase/types';
+
+/** 写真の四隅チェック結果を validation_errors に格納するときの field 名 */
+export const PHOTO_CORNERS_FIELD = 'photo_corners';
 
 export type CrossCheckResult = {
   level: 'error' | 'warning' | 'info';
@@ -26,12 +35,7 @@ type ExtractedDocs = {
     taxpayer_name?: string | null;
     taxpayer_address?: string | null;
   } | null;
-  financialStatements?: {
-    document_types_detected?: string[];
-    company_name?: string | null;
-    fiscal_period_from?: string | null;
-    fiscal_period_to?: string | null;
-  } | null;
+  financialStatements?: Partial<FinancialStatementsData> | null;
   idDocument?: {
     doc_type?: string | null;
     full_name?: string | null;
@@ -149,22 +153,11 @@ export function crossCheckCorporation(docs: ExtractedDocs): CrossCheckResult[] {
     }
   }
 
-  // 5. 決算書の3種そろっているか
+  // 5. 決算書：PL・販管費・BS がそろっているか、直近1期分か
+  //    アップロード直後の判定と同じロジックを使い、結果が食い違わないようにする
   if (docs.financialStatements) {
-    const detected = docs.financialStatements.document_types_detected ?? [];
-    const required = ['PL', 'SGA', 'BS'];
-    const missing = required.filter((r) => !detected.includes(r));
-    if (missing.length > 0) {
-      const map: Record<string, string> = {
-        PL: '損益計算書',
-        SGA: '販売費及び一般管理費内訳',
-        BS: '貸借対照表',
-      };
-      results.push({
-        level: 'error',
-        field: 'financial_statements',
-        message: `決算書のうち ${missing.map((m) => map[m]).join('・')} が確認できません。追加アップロードしてください。`,
-      });
+    for (const r of validateFinancialStatements(docs.financialStatements)) {
+      results.push({ ...r, field: `financial_statements.${r.field}` });
     }
   }
 
@@ -253,22 +246,51 @@ export function crossCheckSoleProprietor(docs: ExtractedDocs): CrossCheckResult[
     }
   }
 
-  // 5. 青色申告チェック
+  // 5. 青色申告チェック（白色の収支内訳書は不可）
   if (docs.blueForm && docs.blueForm.filing_type === 'white') {
     results.push({
-      level: 'info',
+      level: 'error',
       field: 'blue_form',
-      message: '青色申告ではなく白色申告として検出されました。書類を再確認してください。',
+      message: '白色申告（収支内訳書）として検出されました。青色申告決算書をアップロードしてください。',
     });
   }
 
   return results;
 }
 
+type UploadedDocument = {
+  doc_type: DocType;
+  file_name: string;
+  validation_errors?: unknown;
+};
+
+/** 写真の四隅チェックで引っかかった書類を、ファイルごとに送信ブロック対象として挙げる */
+export function photoCornerIssues(documents: UploadedDocument[]): CrossCheckResult[] {
+  const results: CrossCheckResult[] = [];
+  for (const d of documents) {
+    const errors = Array.isArray(d.validation_errors)
+      ? (d.validation_errors as CrossCheckResult[])
+      : [];
+    for (const e of errors) {
+      if (e.field !== PHOTO_CORNERS_FIELD) continue;
+      results.push({
+        level: e.level,
+        field: `${d.doc_type}.${PHOTO_CORNERS_FIELD}`,
+        message: `${DOC_TYPE_LABELS[d.doc_type]}「${d.file_name}」: ${e.message}`,
+      });
+    }
+  }
+  return results;
+}
+
 export function runCrossCheck(
   applicantType: 'corporation' | 'sole_proprietor',
   docs: ExtractedDocs,
+  documents: UploadedDocument[] = [],
 ): CrossCheckResult[] {
-  if (applicantType === 'corporation') return crossCheckCorporation(docs);
-  return crossCheckSoleProprietor(docs);
+  const results =
+    applicantType === 'corporation'
+      ? crossCheckCorporation(docs)
+      : crossCheckSoleProprietor(docs);
+  return [...results, ...photoCornerIssues(documents)];
 }

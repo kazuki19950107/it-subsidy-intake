@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     eTaxReceipt: pick(byType.e_tax_receipt),
   };
 
-  const crossCheckResults = runCrossCheck(app.applicant_type, extracted);
+  const crossCheckResults = runCrossCheck(app.applicant_type, extracted, documents);
   const hasBlockingErrors = crossCheckResults.some((r) => r.level === 'error');
 
   // 基本情報の必須項目チェック

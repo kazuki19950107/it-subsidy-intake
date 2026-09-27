@@ -3,6 +3,8 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { analyzeRequestSchema } from '@/lib/validation/schemas';
 import { runExtractor } from '@/lib/claude/extractors';
 import { visionOcr } from '@/lib/ocr/visionOcr';
+import { checkPhotoCorners } from '@/lib/claude/photoCheck';
+import { MODEL } from '@/lib/claude/client';
 import { sha256 } from '@/lib/utils/hash';
 import { checkMonthlyBudget, checkApplicationBudget, logApiUsage } from '@/lib/utils/costGuard';
 import { auditLog } from '@/lib/utils/logger';
@@ -85,11 +87,19 @@ export async function POST(req: NextRequest) {
 
     const base64 = buffer.toString('base64');
 
+    // 写真（画像ファイル）の場合は、紙の四隅が写っているかを並行して判定する。
+    // PDF とスクリーンショット前提の GビズID 画面は対象外。
+    const needsPhotoCheck =
+      doc.file_mime.startsWith('image/') && doc.doc_type !== 'gbiz_screenshot';
+    const photoCheckPromise = needsPhotoCheck ? checkPhotoCorners(buffer) : null;
+
     // Step 1: Google Vision API で日本語OCR（PDF/画像とも対応）
     const ocr = await visionOcr(base64, doc.file_mime);
 
     // Step 2: Claude で OCR テキストを構造化JSONへ整形
     const result = await runExtractor(doc.doc_type, ocr.text);
+    const photoCheck = photoCheckPromise ? await photoCheckPromise : null;
+    const validationErrors = [...(photoCheck?.validationErrors ?? []), ...result.validationErrors];
 
     // 診断用：抽出されたOCRテキストの先頭2000文字を結果に含める
     // （何が抽出されたか確認できないと「解析失敗」の原因が分からないため）
@@ -98,14 +108,15 @@ export async function POST(req: NextRequest) {
       _ocr_preview: ocr.text.slice(0, 2000),
       _ocr_page_count: ocr.pageCount,
       _ocr_total_chars: ocr.text.length,
+      ...(photoCheck ? { _photo_check: photoCheck.data } : {}),
     };
 
     await logApiUsage({
       applicationId: doc.application_id,
       documentId: document_id,
-      model: 'claude-sonnet-4-5-20250929',
-      inputTokens: result.usage.input,
-      outputTokens: result.usage.output,
+      model: MODEL,
+      inputTokens: result.usage.input + (photoCheck?.usage.input ?? 0),
+      outputTokens: result.usage.output + (photoCheck?.usage.output ?? 0),
     });
 
     await supabase
@@ -114,7 +125,7 @@ export async function POST(req: NextRequest) {
         ocr_status: 'done',
         ocr_result: enrichedData,
         ocr_confidence: result.confidence,
-        validation_errors: result.validationErrors as unknown as Record<string, unknown>[],
+        validation_errors: validationErrors as unknown as Record<string, unknown>[],
         analyzed_at: new Date().toISOString(),
         file_hash: hash,
       })
@@ -128,13 +139,13 @@ export async function POST(req: NextRequest) {
       metadata: {
         doc_type: doc.doc_type,
         confidence: result.confidence,
-        has_errors: result.validationErrors.length > 0,
+        has_errors: validationErrors.length > 0,
       },
     });
 
     return NextResponse.json({
       ocr_result: enrichedData,
-      validation_errors: result.validationErrors,
+      validation_errors: validationErrors,
       confidence: result.confidence,
     });
   } catch (e) {

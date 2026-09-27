@@ -47,7 +47,7 @@ export default async function ReviewPage({
     blueForm: pick(byType.blue_form),
     eTaxReceipt: pick(byType.e_tax_receipt),
   };
-  const crossCheck = runCrossCheck(app.applicant_type, extracted);
+  const crossCheck = runCrossCheck(app.applicant_type, extracted, documents);
 
   const required = REQUIRED_DOCS[app.applicant_type];
   const missing = required.filter((t) => !byType[t]);

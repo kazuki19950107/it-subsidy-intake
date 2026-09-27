@@ -67,7 +67,7 @@ export default async function ApplicationDetailPage({
         taxReturn: pick(byType.tax_return),
         blueForm: pick(byType.blue_form),
         eTaxReceipt: pick(byType.e_tax_receipt),
-      })
+      }, documents)
     : [];
 
   const progress = computeProgress(application, documents);

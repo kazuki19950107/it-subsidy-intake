@@ -327,6 +327,11 @@ export function DocumentUploader({
             </span>
           )}
         </div>
+        {docType !== 'gbiz_screenshot' && (
+          <p className="text-xs text-mute">
+            写真で撮影する場合は、書類の<span className="font-semibold text-ink">四隅がすべて写る</span>ように撮影してください。角が切れている写真は受け付けられません。
+          </p>
+        )}
 
         {docs.length > 0 && (
           <ul className="space-y-3">

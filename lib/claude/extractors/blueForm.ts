@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { extractFromText } from './base';
+import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 
 export const BlueFormSchema = z.object({
   filing_type: z.enum(['blue', 'white']),
@@ -38,4 +39,15 @@ export async function extractBlueForm(text: string) {
     userPrompt: USER_PROMPT,
     schema: BlueFormSchema,
   });
+}
+
+export function validateBlueForm(data: BlueFormData): CrossCheckResult[] {
+  if (data.filing_type !== 'white') return [];
+  return [
+    {
+      level: 'error',
+      field: 'filing_type',
+      message: '白色申告（収支内訳書）として検出されました。青色申告決算書をアップロードしてください。',
+    },
+  ];
 }
