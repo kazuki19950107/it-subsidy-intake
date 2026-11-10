@@ -111,11 +111,16 @@ export function ApplicationList({
                     <div className="font-medium text-ink">
                       {a.company_name || a.applicant_name || '（未入力）'}
                     </div>
-                    {a.company_name && a.applicant_name && (
-                      <div className="text-xs text-mute">{a.applicant_name}</div>
-                    )}
-                    {a.admin_memo && (
-                      <div className="text-[11px] text-mute mt-0.5 max-w-[260px] truncate flex items-center gap-1"><StickyNote className="w-3 h-3 shrink-0" />{a.admin_memo}</div>
+                    {((a.company_name && a.applicant_name) || a.admin_memo) && (
+                      <div className="text-[11px] text-mute max-w-[280px] truncate flex items-center gap-1.5">
+                        {a.company_name && a.applicant_name && <span>{a.applicant_name}</span>}
+                        {a.admin_memo && (
+                          <span className="inline-flex items-center gap-0.5 truncate">
+                            <StickyNote className="w-3 h-3 shrink-0" />
+                            {a.admin_memo}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
@@ -130,12 +135,12 @@ export function ApplicationList({
                   <TableCell className="text-sm">{a._staffName ?? <span className="text-mute text-xs">-</span>}</TableCell>
                   <TableCell>
                     {a.portal_status ? (
-                      <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <Badge variant={portalVariant(a.portal_status)}>{a.portal_status}</Badge>
                         {a.portal_status_updated_on && (
-                          <div className="text-[11px] text-mute">
-                            {formatJpDate(a.portal_status_updated_on)}
-                          </div>
+                          <span className="text-[11px] text-mute tabular-nums">
+                            {a.portal_status_updated_on.slice(5).replace('-', '/')}
+                          </span>
                         )}
                       </div>
                     ) : a.portal_application_no ? (
@@ -157,7 +162,7 @@ export function ApplicationList({
                   </TableCell>
                   <TableCell className="text-[12px] text-mute whitespace-nowrap">{formatJpDate(a.updated_at)}</TableCell>
                   <TableCell>
-                    <Link href={`/admin/dashboard/${a.id}`} className="text-[13px] text-mute hover:text-ink">
+                    <Link href={`/admin/dashboard/${a.id}`} className="text-[13px] text-mute hover:text-ink whitespace-nowrap">
                       開く →
                     </Link>
                   </TableCell>
