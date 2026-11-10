@@ -34,3 +34,10 @@ export function normalizeCorporateNumber(v: string | null | undefined): string |
   const digits = toHalfWidth(v).replace(/[^0-9]/g, '');
   return digits.length === 13 ? digits : null;
 }
+
+/** ポータルの「募集回」（例: "8次"・"８次"）を回次の数字にする。決まっていなければ null */
+export function roundFromPortal(v: string | null | undefined): number | null {
+  if (!v) return null;
+  const m = toHalfWidth(v).match(/(\d+)\s*次/);
+  return m ? Number(m[1]) : null;
+}

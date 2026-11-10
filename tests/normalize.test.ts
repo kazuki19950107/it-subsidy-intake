@@ -57,3 +57,13 @@ describe('checkRegisteredCompany', () => {
     expect(checkRegisteredCompany({ certificateOfHistory: { company_name: 'X' } }, null)).toEqual([]);
   });
 });
+
+import { roundFromPortal } from '@/lib/portal/match';
+describe('roundFromPortal', () => {
+  it('募集回を数字に', () => {
+    expect(roundFromPortal('8次')).toBe(8);
+    expect(roundFromPortal('１２次')).toBe(12);
+    expect(roundFromPortal('募集回未決定')).toBeNull();
+    expect(roundFromPortal(null)).toBeNull();
+  });
+});

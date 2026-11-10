@@ -13,6 +13,7 @@ import {
   type PortalStatusChange,
 } from './diff';
 import { addHistory, applyPortalStatus } from '@/lib/cases/service';
+import { roundFromPortal } from './match';
 
 export type CaseStatusChange = {
   applicationId: string;
@@ -139,9 +140,9 @@ export async function syncVendorPortal(
     // 案件と照合する: 申請番号 → 法人番号（一致すれば申請番号を自動で設定）→ 会社名（候補のみ・詳細画面で人が確定）
     const { data: apps } = await supabase
       .from('applications')
-      .select('id, portal_application_no, corporate_number, company_name, applicant_name, portal_status');
+      .select('id, portal_application_no, corporate_number, company_name, applicant_name, portal_status, round');
     const cases = (apps ?? []) as Array<
-      MatchableCase & { portal_status: string | null }
+      MatchableCase & { portal_status: string | null; round: number | null }
     >;
     let matched = 0;
     const caseChanges: CaseStatusChange[] = [];
@@ -161,6 +162,13 @@ export async function syncVendorPortal(
         portal_status_updated_on: r.status_updated_on,
         portal_synced_at: now,
       };
+      // 回次が空欄なら、ポータルの募集回を入れる
+      const portalRound = roundFromPortal(r.round);
+      if (c.round == null && portalRound != null) {
+        update.round = portalRound;
+        c.round = portalRound;
+        await addHistory(c.id, '回次', null, portalRound, { type: 'portal' });
+      }
       if (m.kind === 'corporate_number') {
         update.portal_application_no = r.application_no;
         c.portal_application_no = r.application_no;

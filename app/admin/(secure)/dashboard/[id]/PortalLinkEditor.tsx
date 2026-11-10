@@ -97,6 +97,8 @@ export function PortalLinkEditor({
             <Badge variant="success">{matched.status ?? '-'}</Badge>
             <span className="text-xs text-mute">
               {matched.applicant_name}
+              {matched.round && ` ・ ${matched.round}`}
+              {matched.application_type && ` ・ ${matched.application_type}`}
               {matched.status_updated_on && ` ・ ${formatJpDate(matched.status_updated_on)} 更新`}
             </span>
           </div>

@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { auditLog } from '@/lib/utils/logger';
 import { normalizeApplicationNo } from '@/lib/portal/normalize';
 import { z } from 'zod';
-import { normalizeCorporateNumber, normalizeName } from '@/lib/portal/match';
+import { normalizeCorporateNumber, normalizeName, roundFromPortal } from '@/lib/portal/match';
 import { MILESTONES, MILESTONE_COLUMNS } from '@/lib/cases/constants';
 import {
   addHistory,
@@ -174,12 +174,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (no) {
       const { data: pc } = await supabase
         .from('portal_cases')
-        .select('status, status_updated_on, last_seen_at')
+        .select('status, status_updated_on, last_seen_at, round')
         .eq('application_no', no)
         .order('last_seen_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       update.portal_status = pc?.status ?? null;
+      // 回次が空欄なら、ポータルの募集回を入れる
+      const portalRound = roundFromPortal(pc?.round);
+      if (before.round == null && portalRound != null && !('round' in fields)) update.round = portalRound;
       update.portal_status_updated_on = pc?.status_updated_on ?? null;
       update.portal_synced_at = pc ? pc.last_seen_at : null;
     } else {
