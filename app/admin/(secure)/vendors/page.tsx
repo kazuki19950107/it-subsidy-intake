@@ -12,7 +12,7 @@ export default async function VendorsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">ベンダー管理</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">ベンダー管理</h1>
         <p className="text-sm text-mute">
           案件で利用しているベンダー（IT導入支援事業者など）を登録・管理します。申請ごとの割り当ては各申請の詳細画面から行えます。
         </p>

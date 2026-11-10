@@ -34,7 +34,7 @@ export default async function LinePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">公式LINE</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">公式LINE</h1>
         <p className="text-sm text-mute">
           公式LINEが参加しているグループと、送れなかった通知の一覧です。グループに公式LINEを招待すると、グループ名（例: 3次BU×会社名様）から案件に自動で紐付きます。
         </p>

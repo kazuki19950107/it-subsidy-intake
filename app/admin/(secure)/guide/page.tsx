@@ -34,7 +34,7 @@ type Who = 'staff' | 'customer' | 'auto';
 const WHO: Record<Who, { label: string; cls: string; icon: typeof User }> = {
   staff: { label: '社内', cls: 'bg-ink text-white', icon: Users },
   customer: { label: '顧客', cls: 'bg-white text-ink border border-ink', icon: User },
-  auto: { label: '自動', cls: 'bg-teal text-white', icon: Bot },
+  auto: { label: '自動', cls: 'bg-sky-50 text-sky-700 border border-sky-200', icon: Bot },
 };
 
 function WhoBadge({ who }: { who: Who }) {
@@ -151,7 +151,7 @@ export default async function GuidePage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-bold text-ink">使い方</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">使い方</h1>
         <p className="text-sm text-mute mt-1">
           案件の登録から、同意書・書類提出・申請・採択・請求・入金までを、この画面でまとめて管理します。グループLINEを1つずつ開いて進捗を確認する必要はありません。
         </p>

@@ -140,7 +140,7 @@ export default async function ApplicationDetailPage({
               ← 一覧に戻る
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-ink">
+          <h1 className="text-xl font-semibold tracking-tight text-ink">
             {application.company_name || application.applicant_name || '(未入力)'}
           </h1>
           <div className="flex items-center gap-2 mt-1">

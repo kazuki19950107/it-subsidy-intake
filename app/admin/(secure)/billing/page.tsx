@@ -101,7 +101,7 @@ export default async function BillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">売上・請求</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">売上・請求</h1>
         <p className="text-sm text-mute">
           請求タイミングに達した案件の請求予定と、フィーの見込みの集計です。請求書の発行方法: {getInvoiceProvider().name}
           （発行日を入れると「請求書発行」のチェックが完了になります）。

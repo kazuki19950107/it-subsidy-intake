@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Building2 } from 'lucide-react';
+import { Building2, StickyNote } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -22,10 +22,8 @@ export type ApplicationWithProgress = Application & {
 function StageBadge({ stage }: { stage?: { name: string; color: string } | null }) {
   if (!stage) return <span className="text-mute text-xs">-</span>;
   return (
-    <span
-      className="inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold text-white whitespace-nowrap"
-      style={{ backgroundColor: stage.color }}
-    >
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-ink whitespace-nowrap">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
       {stage.name}
     </span>
   );
@@ -110,16 +108,14 @@ export function ApplicationList({
                     <StageBadge stage={a._stage} />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">
+                    <div className="font-medium text-ink">
                       {a.company_name || a.applicant_name || '（未入力）'}
                     </div>
                     {a.company_name && a.applicant_name && (
                       <div className="text-xs text-mute">{a.applicant_name}</div>
                     )}
                     {a.admin_memo && (
-                      <div className="text-xs text-teal-dark bg-teal-light/50 rounded px-1.5 py-0.5 mt-1 inline-block max-w-[280px] truncate">
-                        📝 {a.admin_memo}
-                      </div>
+                      <div className="text-[11px] text-mute mt-0.5 max-w-[260px] truncate flex items-center gap-1"><StickyNote className="w-3 h-3 shrink-0" />{a.admin_memo}</div>
                     )}
                   </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
@@ -245,9 +241,7 @@ export function ApplicationList({
                 </div>
 
                 {a.admin_memo && (
-                  <div className="text-xs text-teal-dark bg-teal-light/50 rounded px-2 py-1 mt-2 line-clamp-2">
-                    📝 {a.admin_memo}
-                  </div>
+                  <div className="text-[11px] text-mute mt-2 line-clamp-2 flex items-start gap-1"><StickyNote className="w-3 h-3 mt-0.5 shrink-0" />{a.admin_memo}</div>
                 )}
               </Link>
             </li>

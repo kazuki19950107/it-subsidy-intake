@@ -2,12 +2,16 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogOut } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/admin/pages';
 
 export function AdminNav() {
   const router = useRouter();
+  const pathname = usePathname();
+  // いま開いている画面（より長く一致したものを優先。/admin/dashboard/new が案件一覧と両方光らないように）
+  const activeHref = NAV_ITEMS.filter((i) => !i.external && (pathname === i.href || pathname.startsWith(i.href + '/')))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -28,8 +32,10 @@ export function AdminNav() {
       <nav className="hidden lg:flex items-center gap-1 text-sm">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const className =
-            'px-2.5 py-1.5 rounded-lg text-charcoal hover:bg-teal-light hover:text-teal-dark flex items-center gap-1 whitespace-nowrap transition-colors';
+          const active = item.href === activeHref;
+          const className = `px-2.5 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors text-[13px] ${
+            active ? 'bg-zinc-100 text-ink font-medium' : 'text-zinc-500 hover:text-ink hover:bg-zinc-50'
+          }`;
           return item.external ? (
             <a key={item.href} href={item.href} className={className}>
               <Icon className="w-4 h-4" />

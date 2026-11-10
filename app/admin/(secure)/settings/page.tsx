@@ -71,7 +71,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">設定</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">設定</h1>
         <p className="text-sm text-mute">段階・チェック項目・ツール・社内担当・書類の判定を変えられます。</p>
         <nav className="flex flex-wrap gap-2 mt-3 text-sm">
           {SECTIONS.map((s) => (

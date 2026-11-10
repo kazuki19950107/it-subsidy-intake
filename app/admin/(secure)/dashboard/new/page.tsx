@@ -10,7 +10,7 @@ export default async function NewApplicationPage() {
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-ink">案件の登録</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">案件の登録</h1>
         <p className="text-sm text-mute mt-1">
           案件を登録し、申請者に送る書類提出フォームの専用URL（期限なし）と同意書を作ります。
         </p>

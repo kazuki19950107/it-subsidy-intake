@@ -162,7 +162,7 @@ export default async function DashboardPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-ink">案件一覧</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink">案件一覧</h1>
           <p className="text-xs text-mute mt-1">
             合計 {counts.total}件・フォーム入力中 {counts.draft}件・書類送信済 {counts.submitted}件・完了 {counts.completed}件
           </p>
