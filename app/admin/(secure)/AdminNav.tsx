@@ -52,10 +52,11 @@ export function AdminNav() {
           type="button"
           onClick={handleLogout}
           disabled={loggingOut}
-          className="px-3 py-1.5 rounded hover:bg-teal-light flex items-center gap-1 text-mute hover:text-ink disabled:opacity-50"
+          className="ml-1 p-2 rounded-md text-zinc-400 hover:text-ink hover:bg-zinc-50 disabled:opacity-50"
+          title="ログアウト"
+          aria-label="ログアウト"
         >
           <LogOut className="w-4 h-4" />
-          ログアウト
         </button>
       </nav>
 

@@ -149,19 +149,16 @@ export function ApplicationList({
                     {!!a._openChecks && <div className="text-[11px] text-mute">未完了 {a._openChecks}件</div>}
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1">
+                    <div className="flex items-center gap-2 whitespace-nowrap" title={STEP_LABEL[a._step] ?? a._step}>
                       <Badge variant={status.variant}>{status.label}</Badge>
-                      <ProgressBar percent={a._progress} size="sm" showPercent={false} />
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-mute">{STEP_LABEL[a._step] ?? a._step}</span>
-                        <span className="font-semibold">{a._progress}%</span>
-                      </div>
+                      <ProgressBar percent={a._progress} size="sm" showPercent={false} className="w-14" />
+                      <span className="text-[11px] tabular-nums text-mute">{a._progress}%</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-mute">{formatJpDate(a.updated_at)}</TableCell>
+                  <TableCell className="text-[12px] text-mute whitespace-nowrap">{formatJpDate(a.updated_at)}</TableCell>
                   <TableCell>
-                    <Link href={`/admin/dashboard/${a.id}`} className="text-teal hover:underline text-sm font-semibold">
-                      詳細
+                    <Link href={`/admin/dashboard/${a.id}`} className="text-[13px] text-mute hover:text-ink">
+                      開く →
                     </Link>
                   </TableCell>
                 </TableRow>

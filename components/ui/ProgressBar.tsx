@@ -16,15 +16,9 @@ export function ProgressBar({
   className,
 }: Props) {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
-  const barH = size === 'sm' ? 'h-1.5' : 'h-2';
-  const color =
-    clamped >= 100
-      ? 'bg-ok'
-      : clamped >= 80
-        ? 'bg-teal'
-        : clamped >= 40
-          ? 'bg-teal'
-          : 'bg-warn';
+  const barH = size === 'sm' ? 'h-1' : 'h-1.5';
+  // 色は 1 色（完了だけ緑）にして、表の中で色がばらつかないようにする
+  const color = clamped >= 100 ? 'bg-emerald-500' : 'bg-zinc-800';
 
   return (
     <div className={cn('w-full', className)}>
@@ -36,7 +30,7 @@ export function ProgressBar({
           )}
         </div>
       )}
-      <div className={cn('w-full bg-rule rounded-full overflow-hidden', barH)}>
+      <div className={cn('w-full bg-zinc-200/80 rounded-full overflow-hidden', barH)}>
         <div
           className={cn('h-full transition-all duration-500', color)}
           style={{ width: `${clamped}%` }}

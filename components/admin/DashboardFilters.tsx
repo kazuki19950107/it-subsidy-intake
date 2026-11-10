@@ -13,7 +13,7 @@ import {
 import { DASHBOARD_SORTS, DASHBOARD_SORT_LABELS } from '@/lib/cases/constants';
 
 const SELECT =
-  'h-10 rounded-md border border-rule bg-white px-2 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-teal w-full';
+  'h-9 rounded-md border border-rule bg-white px-2 text-[13px] text-charcoal focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 w-full';
 
 type Key = 'q' | 'vendor' | 'status' | 'stage' | 'check' | 'portal' | 'round' | 'sort';
 
