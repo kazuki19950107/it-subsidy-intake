@@ -14,6 +14,8 @@ import {
 } from './diff';
 import { addHistory, applyPortalStatus } from '@/lib/cases/service';
 import { roundFromPortal } from './match';
+import type { PortalDetail } from './detail';
+import { applyPortalDetailToCase, detailFromRaw } from './applyDetail';
 
 export type CaseStatusChange = {
   applicationId: string;
@@ -101,18 +103,44 @@ export async function syncVendorPortal(
 
   try {
     const password = decryptSecret(vendor.portal_password_enc);
-    const { rows, warnings, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password);
-    const now = new Date().toISOString();
 
-    // 前回の取得結果（このベンダー分）と比べて、状態が変わった・新しく出てきた案件を出す
+    // 前回の取得結果（このベンダー分）。状態の差分と、詳細（ツール・金額）を読み直すかの判断に使う
     const { data: prevRows } = await supabase
       .from('portal_cases')
-      .select('application_no, status')
+      .select('application_no, status, raw')
       .eq('vendor_contact_id', vendorId);
-    const previous = new Map<string, string | null>(
-      ((prevRows ?? []) as Array<{ application_no: string; status: string | null }>).map((r) => [r.application_no, r.status]),
+    const prevByNo = new Map(
+      ((prevRows ?? []) as Array<{ application_no: string; status: string | null; raw: unknown }>).map((r) => [r.application_no, r]),
     );
+    const previous = new Map<string, string | null>(Array.from(prevByNo.values()).map((r) => [r.application_no, r.status]));
+
+    // 案件に紐付いている申請番号。これらは詳細（交付申請 確認）も読む
+    const { data: linkedRows } = await supabase
+      .from('applications')
+      .select('portal_application_no')
+      .not('portal_application_no', 'is', null);
+    const linkedNos = new Set(((linkedRows ?? []) as Array<{ portal_application_no: string }>).map((r) => r.portal_application_no));
+
+    const { rows, details, warnings, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password, {
+      // 詳細がまだ無い・状態が変わった・30日以上たった案件だけ、1回 10件まで
+      pickDetails: (list) =>
+        list
+          .filter((r) => linkedNos.has(r.application_no))
+          .filter((r) => {
+            const prev = prevByNo.get(r.application_no);
+            const d = detailFromRaw(prev?.raw);
+            if (!d) return true;
+            if ((prev?.status ?? '') !== (r.status ?? '')) return true;
+            return Date.now() - new Date(d.fetched_at).getTime() > 30 * 86400_000;
+          })
+          .map((r) => r.application_no)
+          .slice(0, 10),
+      // 3社続けても cron の上限（300秒）に収まるよう、1社あたり30秒まで
+      detailBudgetMs: 30_000,
+    });
+    const now = new Date().toISOString();
     const portalChanges = diffPortalRows(previous, rows);
+    const detailOf = (no: string): PortalDetail | null => details[no] ?? detailFromRaw(prevByNo.get(no)?.raw);
 
     if (rows.length > 0) {
       const payload = rows.map((r) => ({
@@ -125,7 +153,8 @@ export async function syncVendorPortal(
         status: r.status,
         status_updated_on: r.status_updated_on,
         handler_name: r.handler_name,
-        raw: { cells: r.raw, fiscal_year: r.fiscal_year },
+        // 詳細は読み直したときだけ更新し、それ以外は前回の内容を残す
+        raw: { cells: r.raw, fiscal_year: r.fiscal_year, detail: detailOf(r.application_no) },
         last_seen_at: now,
       }));
       // 500 件ずつ upsert
@@ -187,6 +216,9 @@ export async function syncVendorPortal(
         c.portal_status = r.status;
         await applyPortalStatus(c.id, r.status);
       }
+      // 詳細（ツール・補助金申請額・法人番号・代表者）で案件の空欄を埋める
+      const d = detailOf(r.application_no);
+      if (d) await applyPortalDetailToCase(c.id, d);
     }
 
     await supabase

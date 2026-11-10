@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { normalizeApplicationNo } from '@/lib/portal/normalize';
 import type { PortalCase } from '@/lib/supabase/types';
 import { formatJpDate } from '@/lib/utils/dateCheck';
+import type { PortalDetail } from '@/lib/portal/detail';
 
 const PORTAL_LIST_URL = 'https://console.it-shien.smrj.go.jp/IT-105/?is_new=true';
 
@@ -109,6 +110,8 @@ export function PortalLinkEditor({
         ) : null}
       </div>
 
+      {matched && <PortalDetailView raw={matched.raw} />}
+
       {!matched && candidates.length > 0 && (
         <div className="text-xs">
           <div className="text-mute mb-1">名前が似ているポータル案件:</div>
@@ -142,6 +145,43 @@ export function PortalLinkEditor({
           ポータル案件一覧へ
         </Link>
       </p>
+    </div>
+  );
+}
+
+/** ポータルの「交付申請 確認」から読み取った内容（ツール・金額）。毎朝の同期で、紐付いた案件だけ読む */
+function PortalDetailView({ raw }: { raw: unknown }) {
+  const d = (raw as { detail?: PortalDetail | null } | null)?.detail;
+  if (!d) {
+    return (
+      <div className="text-[11px] text-mute">
+        ツール・補助金申請額は、次回のポータル同期で読み取ります（毎朝6時、またはポータル案件の画面の「今すぐ同期」）。
+      </div>
+    );
+  }
+  const yen = (n: number | null) => (n == null ? '-' : `${n.toLocaleString()}円`);
+  return (
+    <div className="rounded border border-rule/70 bg-off-white p-2 text-xs space-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span>補助金申請額 <strong>{yen(d.subsidy_requested)}</strong></span>
+        <span>補助対象経費（税抜） {yen(d.eligible_cost)}</span>
+        <span>総事業費（税込） {yen(d.total_cost)}</span>
+        {d.round != null && <span>募集回 {d.round}次</span>}
+      </div>
+      {d.tools.length > 0 && (
+        <ul className="space-y-0.5">
+          {d.tools.map((t, i) => (
+            <li key={i}>
+              ・{t.name}
+              {t.category && <span className="text-mute">（{t.category}）</span>}
+              {t.subtotal != null && <span className="text-mute"> {yen(t.subtotal)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="text-[10px] text-mute">
+        ポータルの申請内容 {new Date(d.fetched_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })} 時点。案件の空欄（回次・補助金額・法人番号・代表者・ツール）はここから自動で入ります。
+      </div>
     </div>
   );
 }

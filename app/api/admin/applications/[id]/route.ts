@@ -13,6 +13,7 @@ import {
   setMilestoneDate,
 } from '@/lib/cases/service';
 import type { Application } from '@/lib/supabase/types';
+import { applyPortalDetailToCase, detailFromRaw } from '@/lib/portal/applyDetail';
 
 const nullableText = (max: number) =>
   z
@@ -174,7 +175,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (no) {
       const { data: pc } = await supabase
         .from('portal_cases')
-        .select('status, status_updated_on, last_seen_at, round')
+        .select('status, status_updated_on, last_seen_at, round, raw')
         .eq('application_no', no)
         .order('last_seen_at', { ascending: false })
         .limit(1)
@@ -207,6 +208,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   for (const [k, label] of Object.entries(TRACKED)) {
     if (!(k in update)) continue;
     await addHistory(id, label, (before as unknown as Record<string, unknown>)[k], update[k], actor);
+  }
+  // 紐付けた案件に、取り込み済みのポータルの詳細（ツール・補助金申請額など）があれば空欄を埋める
+  if (update.portal_application_no) {
+    const { data: pcd } = await supabase
+      .from('portal_cases')
+      .select('raw')
+      .eq('application_no', update.portal_application_no as string)
+      .order('last_seen_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const d = detailFromRaw(pcd?.raw);
+    if (d) await applyPortalDetailToCase(id, d, { type: 'portal' });
   }
   if ('portal_application_no' in update && update.portal_status !== before.portal_status) {
     await addHistory(id, 'portal_status', before.portal_status, update.portal_status, { type: 'portal' });

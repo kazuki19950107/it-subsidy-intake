@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { launchBrowser } from './browser';
 import { normalizeApplicationNo } from './normalize';
+import { parsePortalDetail, type PortalDetail } from './detail';
 
 export { normalizeApplicationNo };
 
@@ -385,12 +386,44 @@ function toPortalRow(cells: string[], fiscalYear: string): PortalRow | null {
  */
 export type ScrapeResult = {
   rows: PortalRow[];
+  /** 詳細（交付申請 確認）を読んだ案件。交付申請番号 → 内容 */
+  details: Record<string, PortalDetail>;
   /** 年度単位で失敗したが全体は続行した場合のメッセージ */
   warnings: string[];
   yearsSearched: string[];
 };
 
-export async function scrapePortalCases(loginId: string, password: string): Promise<ScrapeResult> {
+export type ScrapeOptions = {
+  /** 一覧を取ったあと、詳細を読む交付申請番号を選ぶ（並び順に読む） */
+  pickDetails?: (rows: PortalRow[]) => string[];
+  /** 詳細を読むのに使ってよい時間（ミリ秒）。超えたら残りは次回 */
+  detailBudgetMs?: number;
+};
+
+/** 「交付申請 確認」画面を開いて読み取る。開けなかった・別の画面だったときは null */
+async function fetchDetail(page: Page, applicationNo: string): Promise<PortalDetail | null> {
+  await page.goto(`${PORTAL_BASE}/IT-113/?app_id=${encodeURIComponent(applicationNo)}`, { waitUntil: 'domcontentloaded' });
+  await visibleText(page, '補助金申請額合計').first().waitFor({ timeout: 15_000 }).catch(() => {});
+  const { text, toolRows } = await page.evaluate(() => {
+    const tables = Array.from(document.querySelectorAll('table'));
+    const t = tables.find((x) => /ITツール名/.test(x.innerText) && /カテゴリー/.test(x.innerText));
+    const rows = t
+      ? Array.from(t.querySelectorAll('tr'))
+          .slice(1)
+          .map((tr) => Array.from(tr.children).map((td) => (td as HTMLElement).innerText))
+      : [];
+    return { text: document.body.innerText, toolRows: rows };
+  });
+  // 別の案件や別の画面が出ていないか（番号が本文にあるか）を確かめる
+  if (!text.replace(/\s/g, '').includes(applicationNo)) return null;
+  return parsePortalDetail(text, toolRows);
+}
+
+export async function scrapePortalCases(
+  loginId: string,
+  password: string,
+  options: ScrapeOptions = {},
+): Promise<ScrapeResult> {
   let browser;
   try {
     browser = await launchBrowser();
@@ -450,10 +483,29 @@ export async function scrapePortalCases(loginId: string, password: string): Prom
       );
     }
 
+    // 紐付いた案件などの詳細（ツール・金額）を読む。時間を区切り、残りは次回に回す
+    const rows = Array.from(map.values());
+    const details: Record<string, PortalDetail> = {};
+    const targets = options.pickDetails ? options.pickDetails(rows) : [];
+    const deadline = Date.now() + (options.detailBudgetMs ?? 60_000);
+    for (const no of targets) {
+      if (Date.now() > deadline) {
+        warnings.push(`詳細は時間の都合で ${Object.keys(details).length}/${targets.length}件 まで読みました（残りは次回）`);
+        break;
+      }
+      try {
+        const d = await fetchDetail(page, no);
+        if (d) details[no] = d;
+      } catch (e) {
+        warnings.push(`詳細 ${no}: ${(e as Error).message.split('\n')[0].slice(0, 120)}`);
+        await debugShot(page, `detail-${no}-failed`);
+      }
+    }
+
     // セッションを残さない
     await visibleText(page, 'ログアウト').first().click({ timeout: 5_000 }).catch(() => {});
 
-    return { rows: Array.from(map.values()), warnings, yearsSearched };
+    return { rows, details, warnings, yearsSearched };
   } finally {
     await browser.close().catch(() => {});
   }

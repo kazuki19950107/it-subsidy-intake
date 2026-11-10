@@ -377,6 +377,18 @@ export default async function GuidePage() {
                 <td className="py-1.5 text-mute">—</td>
               </tr>
               <tr>
+                <td className="py-1.5 pr-3 text-sm">回次</td>
+                <td className="py-1.5 pr-3" colSpan={2}>ポータルと紐付いたときに「募集回」から（例: 8次 → 8）</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">補助金額</td>
+                <td className="py-1.5 pr-3" colSpan={2}>ポータルの申請内容の「補助金申請額合計」から（毎朝の同期で、紐付いた案件だけ読む）</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">ツール</td>
+                <td className="py-1.5 pr-3" colSpan={2}>ポータルの申請内容のITツール名が、設定の「ツール名」と一致したとき（ツール名は4文字以上で登録）</td>
+              </tr>
+              <tr>
                 <td className="py-1.5 pr-3 text-sm">代表者</td>
                 <td className="py-1.5 pr-3">登記簿 → 納税証明書</td>
                 <td className="py-1.5">本人確認書類 → 確定申告書の氏名</td>
@@ -390,7 +402,7 @@ export default async function GuidePage() {
           </table>
         </div>
         <Note>
-          書類から入れるのは<strong>空欄の項目だけ</strong>です。社内で入れた値は上書きせず、食い違っていれば書類の「不備」として表示します。自動で入った項目は変更履歴に「書類から自動入力」として残ります。
+          書類やポータルから入れるのは<strong>空欄の項目だけ</strong>です。社内で入れた値は上書きせず、食い違っていれば書類の「不備」として表示します。自動で入った項目は変更履歴に「書類から自動入力」として残ります。
         </Note>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-md border border-rule p-3">
