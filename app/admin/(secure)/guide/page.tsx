@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: '使い方' };
 
 const TOC = [
+  { id: 'video', label: '動画で見る' },
   { id: 'flow', label: '全体の流れ' },
   { id: 'screens', label: '画面の一覧' },
   { id: 'stages', label: '段階の進み方' },
@@ -167,6 +168,30 @@ export default async function GuidePage() {
           ))}
         </nav>
       </div>
+
+      {/* ───────── 動画 ───────── */}
+      <Section
+        id="video"
+        title="動画で見る（約6分）"
+        lead="案件の登録から、同意書・書類提出・ポータル連携・フィー・請求と入金、公式LINEの設定まで、押す場所を枠で示しながら音声と字幕で説明します。"
+      >
+        <video
+          className="w-full rounded-lg border border-rule bg-black"
+          src="/guide/tsumugi-guide.mp4"
+          poster="/guide/tsumugi-guide-poster.png"
+          controls
+          preload="metadata"
+          playsInline
+        >
+          お使いのブラウザでは動画を再生できません。
+        </video>
+        <div className="flex flex-wrap gap-3 text-xs">
+          <a href="/guide/tsumugi-guide.mp4" download className="text-teal hover:underline font-semibold">
+            動画をダウンロード（mp4）
+          </a>
+          <span className="text-mute">LINE などでそのまま共有できます。</span>
+        </div>
+      </Section>
 
       {/* ───────── 全体の流れ ───────── */}
       <Section id="flow" title="全体の流れ" lead="社内が手を動かすのは黒、顧客は白、自動は青のところです。">
