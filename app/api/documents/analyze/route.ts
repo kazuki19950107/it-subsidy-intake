@@ -8,6 +8,8 @@ import { MODEL } from '@/lib/claude/client';
 import { sha256 } from '@/lib/utils/hash';
 import { checkMonthlyBudget, checkApplicationBudget, logApiUsage } from '@/lib/utils/costGuard';
 import { auditLog } from '@/lib/utils/logger';
+import { getDocRules } from '@/lib/docRules/settings';
+import { LOW_CONFIDENCE_THRESHOLD } from '@/lib/docRules/defaults';
 
 export const maxDuration = 60;
 
@@ -97,9 +99,22 @@ export async function POST(req: NextRequest) {
     const ocr = await visionOcr(base64, doc.file_mime);
 
     // Step 2: Claude で OCR テキストを構造化JSONへ整形
-    const result = await runExtractor(doc.doc_type, ocr.text);
+    const rules = await getDocRules();
+    const result = await runExtractor(doc.doc_type, ocr.text, rules);
     const photoCheck = photoCheckPromise ? await photoCheckPromise : null;
     const validationErrors = [...(photoCheck?.validationErrors ?? []), ...result.validationErrors];
+
+    // 判定に自信がないとき（読み取りの信頼度が低い・写真の判定ができなかった）は担当者確認に回す
+    const needsStaffReview =
+      doc.doc_type !== 'gbiz_screenshot' &&
+      (result.confidence < LOW_CONFIDENCE_THRESHOLD || (needsPhotoCheck && !photoCheck?.data));
+    if (needsStaffReview) {
+      validationErrors.push({
+        level: 'info',
+        field: 'needs_staff_review',
+        message: '読み取りの確からしさが低いため、担当者が内容を確認します。',
+      });
+    }
 
     // 診断用：抽出されたOCRテキストの先頭2000文字を結果に含める
     // （何が抽出されたか確認できないと「解析失敗」の原因が分からないため）
@@ -128,6 +143,7 @@ export async function POST(req: NextRequest) {
         validation_errors: validationErrors as unknown as Record<string, unknown>[],
         analyzed_at: new Date().toISOString(),
         file_hash: hash,
+        needs_staff_review: needsStaffReview,
       })
       .eq('id', document_id);
 

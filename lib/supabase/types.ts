@@ -65,6 +65,160 @@ export interface Application {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  // ── 案件管理（20261110000000_case_management.sql） ──
+  corporate_number: string | null;
+  company_name_normalized: string | null;
+  representative_name: string | null;
+  address: string | null;
+  tool_id: string | null;
+  round: number | null;
+  staff_account_id: string | null;
+  referrer: string | null;
+  stage_id: string | null;
+  subsidy_amount: number | null;
+  fee_estimated: number | null;
+  fee_confirmed: number | null;
+  contract_signed_at: string | null;
+  documents_submitted_at: string | null;
+  applied_at: string | null;
+  adopted_at: string | null;
+  grant_decided_at: string | null;
+  subsidy_paid_at: string | null;
+}
+
+export interface Tool {
+  id: string;
+  code: string;
+  name: string;
+  fee_method: 'rate' | 'fixed';
+  fee_rate: number | string | null;
+  fee_fixed: number | null;
+  billing_timing: 'contract_signed' | 'applied' | 'adopted' | 'grant_decided' | 'subsidy_paid';
+  sort_order: number;
+  active: boolean;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  role: string;
+  email: string | null;
+  memo: string | null;
+  active: boolean;
+  sort_order: number;
+}
+
+export interface Stage {
+  id: string;
+  name: string;
+  sort_order: number;
+  color: string;
+  milestone:
+    | 'contract_signed'
+    | 'documents_submitted'
+    | 'applied'
+    | 'adopted'
+    | 'grant_decided'
+    | 'subsidy_paid'
+    | null;
+  portal_keywords: string[];
+  notify_customer: boolean;
+  customer_message: string | null;
+}
+
+export interface CheckItemDef {
+  id: string;
+  name: string;
+  stage_id: string | null;
+  due_days: number | null;
+  system_key: string | null;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface CaseCheck {
+  id: string;
+  application_id: string;
+  check_item_def_id: string;
+  due_on: string | null;
+  done_at: string | null;
+  done_by: string | null;
+  created_at: string;
+}
+
+export interface StatusHistory {
+  id: string;
+  application_id: string;
+  field: string;
+  from_value: string | null;
+  to_value: string | null;
+  actor_type: 'staff' | 'portal' | 'line' | 'system' | 'customer';
+  actor_name: string | null;
+  created_at: string;
+}
+
+export interface LineGroup {
+  id: string;
+  group_id: string;
+  kind: 'customer' | 'internal';
+  group_name: string | null;
+  application_id: string | null;
+  link_method: 'auto' | 'manual' | null;
+  candidate_application_ids: string[];
+  active: boolean;
+  name_fetched_at: string | null;
+  joined_at: string;
+  created_at: string;
+}
+
+export interface LineSendFailure {
+  id: string;
+  to_id: string | null;
+  purpose: string;
+  body: string;
+  reason: string;
+  resent_at: string | null;
+  created_at: string;
+}
+
+export interface Contract {
+  id: string;
+  application_id: string;
+  token: string;
+  status: 'sent' | 'viewed' | 'signed' | 'void';
+  title: string;
+  body_html: string;
+  template_version: string;
+  viewed_at: string | null;
+  signer_name: string | null;
+  signer_title: string | null;
+  signer_email: string | null;
+  signature_method: 'typed' | 'drawn' | null;
+  signature_image: string | null;
+  signed_at: string | null;
+  signer_ip: string | null;
+  signer_user_agent: string | null;
+  signed_pdf_path: string | null;
+  signed_pdf_sha256: string | null;
+  timestamp_token: string | null;
+  timestamp_authority: string | null;
+  timestamped_at: string | null;
+  created_at: string;
+}
+
+export interface BillingSchedule {
+  id: string;
+  application_id: string;
+  amount: number | null;
+  trigger: string;
+  occurred_on: string;
+  invoice_issued_on: string | null;
+  paid_on: string | null;
+  invoice_external_id: string | null;
+  invoice_url: string | null;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface VendorContact {
@@ -134,6 +288,7 @@ export interface Document {
   ocr_error: string | null;
   validation_errors: Record<string, unknown>[] | null;
   user_corrected: Record<string, unknown> | null;
+  needs_staff_review?: boolean;
   uploaded_at: string;
   analyzed_at: string | null;
 }

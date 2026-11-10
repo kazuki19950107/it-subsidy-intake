@@ -5,6 +5,19 @@ import {
   type FinancialStatementsData,
 } from '@/lib/claude/extractors/financialStatements';
 import type { DocType } from '@/lib/supabase/types';
+import { DEFAULT_DOC_RULES, type DocRules } from '@/lib/docRules/defaults';
+import { normalizeCorporateNumber, normalizeName as normalizeForMatch } from '@/lib/portal/match';
+
+/** 案件に登録済みの会社情報（書類の内容と照らし合わせる） */
+export type RegisteredCompany = {
+  company_name?: string | null;
+  corporate_number?: string | null;
+};
+
+export type CrossCheckOptions = {
+  rules?: DocRules;
+  registered?: RegisteredCompany | null;
+};
 
 /** 写真の四隅チェック結果を validation_errors に格納するときの field 名 */
 export const PHOTO_CORNERS_FIELD = 'photo_corners';
@@ -17,6 +30,7 @@ export type CrossCheckResult = {
 
 type ExtractedDocs = {
   certificateOfHistory?: {
+    company_number?: string | null;
     company_name?: string | null;
     issued_date?: string | null;
     representative_name?: string | null;
@@ -81,7 +95,59 @@ function normalizeAddress(addr: string | null | undefined): string {
   return addr.replace(/\s|　|丁目|番地|番|号/g, '').toLowerCase();
 }
 
-export function crossCheckCorporation(docs: ExtractedDocs): CrossCheckResult[] {
+/**
+ * 書類の法人番号（13 桁）または会社法人等番号（12 桁）が、登録済みの法人番号と合うか。
+ * 法人番号は「チェック用の 1 桁 + 会社法人等番号 12 桁」なので、12 桁のときは末尾 12 桁で比べる。
+ * 比べられないときは null。
+ */
+export function corporateNumberMatches(
+  registered: string | null | undefined,
+  fromDoc: string | null | undefined,
+): boolean | null {
+  const reg = normalizeCorporateNumber(registered);
+  const digits = (fromDoc ?? '')
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[^0-9]/g, '');
+  if (!reg || (digits.length !== 12 && digits.length !== 13)) return null;
+  return digits.length === 13 ? digits === reg : reg.slice(1) === digits;
+}
+
+/** 登録済みの会社情報と書類の内容が合っているか */
+export function checkRegisteredCompany(
+  docs: ExtractedDocs,
+  registered: RegisteredCompany | null | undefined,
+): CrossCheckResult[] {
+  const results: CrossCheckResult[] = [];
+  if (!registered) return results;
+  const regName = normalizeForMatch(registered.company_name);
+  if (regName) {
+    const docNames: Array<[string, string | null | undefined]> = [
+      ['履歴事項全部証明書', docs.certificateOfHistory?.company_name],
+      ['納税証明書', docs.taxCert1?.taxpayer_name],
+      ['決算書', docs.financialStatements?.company_name],
+    ];
+    for (const [label, name] of docNames) {
+      const n = normalizeForMatch(name);
+      if (!n || n === regName) continue;
+      results.push({
+        level: 'error',
+        field: 'registered.company_name',
+        message: `${label}の会社名（${name}）が、登録されている会社名（${registered.company_name}）と一致しません。`,
+      });
+    }
+  }
+  const corpOk = corporateNumberMatches(registered.corporate_number, docs.certificateOfHistory?.company_number);
+  if (corpOk === false) {
+    results.push({
+      level: 'error',
+      field: 'registered.corporate_number',
+      message: `履歴事項全部証明書の会社法人等番号（${docs.certificateOfHistory?.company_number}）が、登録されている法人番号（${registered.corporate_number}）と一致しません。`,
+    });
+  }
+  return results;
+}
+
+export function crossCheckCorporation(docs: ExtractedDocs, rules: DocRules = DEFAULT_DOC_RULES): CrossCheckResult[] {
   const results: CrossCheckResult[] = [];
 
   // 1. 会社名一致チェック
@@ -101,34 +167,40 @@ export function crossCheckCorporation(docs: ExtractedDocs): CrossCheckResult[] {
     }
   }
 
-  // 2. 履歴事項 発行日が90日以内
+  // 2. 履歴事項 発行日が期限内（既定 90 日）
+  const maxCertDays = rules.certificate_of_history.params.max_age_days ?? 90;
   if (docs.certificateOfHistory?.issued_date) {
     const days = daysSince(docs.certificateOfHistory.issued_date);
-    if (!isNaN(days) && days > 90) {
+    if (!isNaN(days) && days > maxCertDays) {
       results.push({
         level: 'error',
         field: 'certificate_of_history.issued_date',
-        message: `履歴事項全部証明書の発行から${days}日経過しています。3ヶ月以内のものを再取得してください。`,
+        message: `履歴事項全部証明書の発行から${days}日経過しています。発行から${maxCertDays}日以内のものを再取得してください。`,
       });
-    } else if (!isNaN(days) && days > 75) {
+    } else if (!isNaN(days) && days > maxCertDays - 15) {
       results.push({
         level: 'warning',
         field: 'certificate_of_history.issued_date',
-        message: `履歴事項全部証明書の発行から${days}日経過しています。まもなく期限（90日）です。`,
+        message: `履歴事項全部証明書の発行から${days}日経過しています。まもなく期限（${maxCertDays}日）です。`,
       });
     }
   }
 
-  // 3. 納税証明書その1 の税目チェック
+  // 3. 納税証明書の種類（既定は その3）。税目は その1・その2 を求めるときだけ確認する
+  const requiredTaxType = rules.tax_cert_1.params.certificate_type ?? 'その3';
   if (docs.taxCert1) {
-    if (docs.taxCert1.certificate_type && docs.taxCert1.certificate_type !== 'その1') {
+    if (docs.taxCert1.certificate_type && docs.taxCert1.certificate_type !== requiredTaxType) {
       results.push({
         level: 'error',
         field: 'tax_cert_1.certificate_type',
-        message: `納税証明書が「その1」ではありません（${docs.taxCert1.certificate_type}）。その1を再取得してください。`,
+        message: `納税証明書が「${requiredTaxType}」ではありません（${docs.taxCert1.certificate_type}）。${requiredTaxType}を再取得してください。`,
       });
     }
-    if (docs.taxCert1.tax_category && docs.taxCert1.tax_category !== '法人税') {
+    if (
+      (requiredTaxType === 'その1' || requiredTaxType === 'その2') &&
+      docs.taxCert1.tax_category &&
+      docs.taxCert1.tax_category !== '法人税'
+    ) {
       results.push({
         level: 'error',
         field: 'tax_cert_1.tax_category',
@@ -156,7 +228,7 @@ export function crossCheckCorporation(docs: ExtractedDocs): CrossCheckResult[] {
   // 5. 決算書：PL・販管費・BS がそろっているか、直近1期分か
   //    アップロード直後の判定と同じロジックを使い、結果が食い違わないようにする
   if (docs.financialStatements) {
-    for (const r of validateFinancialStatements(docs.financialStatements)) {
+    for (const r of validateFinancialStatements(docs.financialStatements, rules.financial_statements.params)) {
       results.push({ ...r, field: `financial_statements.${r.field}` });
     }
   }
@@ -164,7 +236,8 @@ export function crossCheckCorporation(docs: ExtractedDocs): CrossCheckResult[] {
   return results;
 }
 
-export function crossCheckSoleProprietor(docs: ExtractedDocs): CrossCheckResult[] {
+export function crossCheckSoleProprietor(docs: ExtractedDocs, rules: DocRules = DEFAULT_DOC_RULES): CrossCheckResult[] {
+  const maxResidentDays = rules.id_document.params.max_age_days ?? 90;
   const results: CrossCheckResult[] = [];
 
   // 1. 氏名一致
@@ -222,11 +295,11 @@ export function crossCheckSoleProprietor(docs: ExtractedDocs): CrossCheckResult[
     }
     if (docs.idDocument.doc_type === 'resident_record' && docs.idDocument.issued_date) {
       const days = daysSince(docs.idDocument.issued_date);
-      if (!isNaN(days) && days > 90) {
+      if (!isNaN(days) && days > maxResidentDays) {
         results.push({
           level: 'error',
           field: 'id_document.issued_date',
-          message: `住民票の発行から${days}日経過しています。3ヶ月以内のものを再取得してください。`,
+          message: `住民票の発行から${days}日経過しています。発行から${maxResidentDays}日以内のものを再取得してください。`,
         });
       }
     }
@@ -287,10 +360,12 @@ export function runCrossCheck(
   applicantType: 'corporation' | 'sole_proprietor',
   docs: ExtractedDocs,
   documents: UploadedDocument[] = [],
+  options: CrossCheckOptions = {},
 ): CrossCheckResult[] {
+  const rules = options.rules ?? DEFAULT_DOC_RULES;
   const results =
     applicantType === 'corporation'
-      ? crossCheckCorporation(docs)
-      : crossCheckSoleProprietor(docs);
+      ? [...crossCheckCorporation(docs, rules), ...checkRegisteredCompany(docs, options.registered)]
+      : crossCheckSoleProprietor(docs, rules);
   return [...results, ...photoCornerIssues(documents)];
 }

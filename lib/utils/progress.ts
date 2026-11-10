@@ -22,7 +22,7 @@ export type ProgressResult = {
   docsRequired: number;
 };
 
-export function computeProgress(app: AppLite, documents: DocLite[]): ProgressResult {
+export function computeProgress(app: AppLite, documents: DocLite[], requiredDocs?: Document['doc_type'][]): ProgressResult {
   // 送信済み or 完了は常に 100%
   if (app.status === 'submitted' || app.status === 'completed') {
     return {
@@ -45,7 +45,7 @@ export function computeProgress(app: AppLite, documents: DocLite[]): ProgressRes
   let docsRequired = 0;
   let docsUploaded = 0;
   if (app.applicant_type) {
-    const required = REQUIRED_DOCS[app.applicant_type];
+    const required = requiredDocs ?? REQUIRED_DOCS[app.applicant_type];
     docsRequired = required.length;
     docsUploaded = required.filter((t) => documents.some((d) => d.doc_type === t)).length;
   }

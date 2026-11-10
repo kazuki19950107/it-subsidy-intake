@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/admin/vendors/[id]/portal-sync': ['./node_modules/@sparticuz/chromium/bin/**/*'],
     '/api/cron/portal-sync': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    // 同意書の PDF 作成にも同じ Chromium を使う
+    '/api/contracts/[token]/sign': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    '/api/admin/contracts/[id]/pdf': ['./node_modules/@sparticuz/chromium/bin/**/*'],
   },
   images: {
     remotePatterns: [

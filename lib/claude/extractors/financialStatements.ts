@@ -2,9 +2,14 @@ import { z } from 'zod';
 import { extractFromText } from './base';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 import { daysSince } from '@/lib/utils/dateCheck';
+import {
+  DEFAULT_DOC_RULES,
+  FINANCIAL_SECTION_LABELS,
+  type DocRuleParams,
+} from '@/lib/docRules/defaults';
 
 export const FinancialStatementsSchema = z.object({
-  document_types_detected: z.array(z.enum(['PL', 'SGA', 'BS', 'unknown'])),
+  document_types_detected: z.array(z.enum(['PL', 'SGA', 'BS', 'CF', 'unknown'])),
   company_name: z.string().nullable(),
   fiscal_period_from: z.string().nullable(),
   fiscal_period_to: z.string().nullable(),
@@ -40,7 +45,7 @@ export const USER_PROMPT = `以下のOCRテキストは会社の決算書です�
 
 以下の項目を抽出してください：
 
-- document_types_detected: テキストに含まれる書類種別の配列（"PL"=損益計算書, "SGA"=販管費内訳, "BS"=貸借対照表, "unknown"=判別不能）。PL内にSGAセクションがあれば PL と SGA の両方を含めること。
+- document_types_detected: テキストに含まれる書類種別の配列（"PL"=損益計算書, "SGA"=販管費内訳, "BS"=貸借対照表, "CF"=キャッシュフロー計算書, "unknown"=判別不能）。PL内にSGAセクションがあれば PL と SGA の両方を含めること。
 - company_name: 会社名
 - fiscal_period_from: 会計期間 開始日（YYYY-MM-DD）
 - fiscal_period_to: 会計期間 終了日（YYYY-MM-DD）
@@ -66,9 +71,12 @@ export async function extractFinancialStatements(text: string) {
 
 export function validateFinancialStatements(
   data: Partial<FinancialStatementsData>,
+  params: DocRuleParams = DEFAULT_DOC_RULES.financial_statements.params,
 ): CrossCheckResult[] {
   const errors: CrossCheckResult[] = [];
-  const detected = new Set(data.document_types_detected ?? []);
+  const detected = new Set<string>(data.document_types_detected ?? []);
+  const required = params.required_sections ?? ['PL', 'SGA', 'BS'];
+  const maxDays = params.max_period_age_days ?? LATEST_PERIOD_MAX_DAYS;
 
   // データから逆算して検出を補強する。
   // PL の主要数値（売上 or 売上総利益 or 営業利益）が取れていたら PL は実在する。
@@ -84,43 +92,30 @@ export function validateFinancialStatements(
   if (hasBsData) detected.add('BS');
 
   // 両方とも欠けてる場合はまとめて1メッセージで通知（決算書全体が読めてない可能性）
-  if (!detected.has('PL') && !detected.has('BS')) {
+  if (required.includes('PL') && required.includes('BS') && !detected.has('PL') && !detected.has('BS')) {
     errors.push({
       level: 'error',
       field: 'document_types_detected',
       message:
         '決算書からPL（損益計算書）とBS（貸借対照表）のどちらも検出できませんでした。アップロードしたPDFが決算書の全ページを含んでいるかご確認ください。',
     });
-  } else if (!detected.has('PL')) {
-    errors.push({
-      level: 'error',
-      field: 'document_types_detected',
-      message:
-        '決算書にPL（損益計算書）のページが見つかりません。決算書PDFにPLが含まれているかご確認ください。',
-    });
-  } else if (!detected.has('BS')) {
-    errors.push({
-      level: 'error',
-      field: 'document_types_detected',
-      message:
-        '決算書にBS（貸借対照表）のページが見つかりません。決算書PDFにBSが含まれているかご確認ください。',
-    });
-  }
-
-  // 販管費（販売費及び一般管理費）の内訳は必須
-  if (detected.has('PL') && !detected.has('SGA')) {
-    errors.push({
-      level: 'error',
-      field: 'document_types_detected',
-      message:
-        '決算書に販管費（販売費及び一般管理費）の内訳が見つかりません。販管費の内訳ページも含めてアップロードしてください。',
-    });
+  } else {
+    for (const sec of required) {
+      if (detected.has(sec)) continue;
+      // 販管費の内訳は PL がある場合だけ指摘する（PL 自体が無いときは PL の指摘で足りる）
+      if (sec === 'SGA' && !detected.has('PL')) continue;
+      errors.push({
+        level: 'error',
+        field: 'document_types_detected',
+        message: `決算書に${FINANCIAL_SECTION_LABELS[sec]}が見つかりません。${FINANCIAL_SECTION_LABELS[sec]}のページも含めてアップロードしてください。`,
+      });
+    }
   }
 
   // 直近1期分であること
   if (data.fiscal_period_to) {
     const days = daysSince(data.fiscal_period_to);
-    if (!isNaN(days) && days > LATEST_PERIOD_MAX_DAYS) {
+    if (!isNaN(days) && days > maxDays) {
       errors.push({
         level: 'error',
         field: 'fiscal_period_to',
@@ -165,7 +160,7 @@ export function mergeFinancialResults(
     net_assets: null,
     _confidence: 0,
   };
-  const typeSet = new Set<'PL' | 'SGA' | 'BS' | 'unknown'>();
+  const typeSet = new Set<'PL' | 'SGA' | 'BS' | 'CF' | 'unknown'>();
   let totalConfidence = 0;
   let count = 0;
 

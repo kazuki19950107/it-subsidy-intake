@@ -22,6 +22,17 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { computeProgress } from '@/lib/utils/progress';
 import { getVendor, listActiveVendors } from '@/lib/vendors/queries';
 import { portalInfoForApplication } from '@/lib/portal/queries';
+import { getCaseOptions } from '@/lib/cases/queries';
+import { getDocRules } from '@/lib/docRules/settings';
+import { requiredDocsFor } from '@/lib/docRules/defaults';
+import { contractUrl } from '@/lib/contracts/service';
+import type { BillingSchedule, Contract, LineGroup, StatusHistory } from '@/lib/supabase/types';
+import { CaseInfoEditor } from './CaseInfoEditor';
+import { ChecksPanel, type CheckRow } from './ChecksPanel';
+import { ContractPanel } from './ContractPanel';
+import { BillingPanel, HistoryPanel, LineGroupsPanel } from './CaseSidePanels';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ApplicationDetailPage({
   params,
@@ -45,11 +56,45 @@ export default async function ApplicationDetailPage({
     .order('uploaded_at', { ascending: true });
   const documents = (docs ?? []) as Document[];
 
-  const [vendors, currentVendor, portal] = await Promise.all([
-    listActiveVendors(),
-    application.vendor_contact_id ? getVendor(application.vendor_contact_id) : Promise.resolve(null),
-    portalInfoForApplication(application),
-  ]);
+  const [vendors, currentVendor, portal, options, rules, checksRes, contractRes, groupsRes, historyRes, billingRes] =
+    await Promise.all([
+      listActiveVendors(),
+      application.vendor_contact_id ? getVendor(application.vendor_contact_id) : Promise.resolve(null),
+      portalInfoForApplication(application),
+      getCaseOptions(),
+      getDocRules(),
+      supabase
+        .from('case_checks')
+        .select('id, due_on, done_at, done_by, def:check_item_defs(name, sort_order)')
+        .eq('application_id', id),
+      supabase
+        .from('contracts')
+        .select('*')
+        .eq('application_id', id)
+        .neq('status', 'void')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from('line_groups').select('*').eq('application_id', id),
+      supabase
+        .from('status_history')
+        .select('*')
+        .eq('application_id', id)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase.from('billing_schedules').select('*').eq('application_id', id).maybeSingle(),
+    ]);
+  const checks: CheckRow[] = ((checksRes.data ?? []) as unknown as Array<{
+    id: string;
+    due_on: string | null;
+    done_at: string | null;
+    done_by: string | null;
+    def: { name: string; sort_order: number } | null;
+  }>)
+    .sort((a, b) => (a.def?.sort_order ?? 0) - (b.def?.sort_order ?? 0))
+    .map((c) => ({ id: c.id, name: c.def?.name ?? '', due_on: c.due_on, done_at: c.done_at, done_by: c.done_by }));
+  const contract = contractRes.data as Contract | null;
+  const staffReviewDocs = documents.filter((d) => d.needs_staff_review);
 
   const byType = documents.reduce<Record<string, Document>>((acc, d) => {
     acc[d.doc_type] = d;
@@ -67,10 +112,17 @@ export default async function ApplicationDetailPage({
         taxReturn: pick(byType.tax_return),
         blueForm: pick(byType.blue_form),
         eTaxReceipt: pick(byType.e_tax_receipt),
-      }, documents)
+      }, documents, {
+        rules,
+        registered: { company_name: application.company_name, corporate_number: application.corporate_number },
+      })
     : [];
 
-  const progress = computeProgress(application, documents);
+  const progress = computeProgress(
+    application,
+    documents,
+    application.applicant_type ? requiredDocsFor(application.applicant_type, rules) : undefined,
+  );
   const stepLabels: Record<string, string> = {
     landing: 'URL開いた',
     info: '基本情報入力中',
@@ -116,6 +168,41 @@ export default async function ApplicationDetailPage({
           <ProgressBar percent={progress.percent} showPercent label="" />
         </CardContent>
       </Card>
+
+      {staffReviewDocs.length > 0 && (
+        <Card className="border-warn">
+          <CardContent className="pt-6 text-sm">
+            <span className="font-semibold">担当者確認が必要な書類が {staffReviewDocs.length}件 あります: </span>
+            {staffReviewDocs.map((d) => rules[d.doc_type].label).join('、')}
+          </CardContent>
+        </Card>
+      )}
+
+      <CaseInfoEditor app={application} tools={options.tools} accounts={options.accounts} stages={options.stages} />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChecksPanel applicationId={application.id} checks={checks} defs={options.checkDefs} />
+        <ContractPanel
+          applicationId={application.id}
+          contract={
+            contract
+              ? {
+                  id: contract.id,
+                  status: contract.status,
+                  url: contractUrl(contract.token),
+                  signer_name: contract.signer_name,
+                  signed_at: contract.signed_at,
+                  signer_ip: contract.signer_ip,
+                  signed_pdf_sha256: contract.signed_pdf_sha256,
+                  viewed_at: contract.viewed_at,
+                  created_at: contract.created_at,
+                }
+              : null
+          }
+        />
+        <LineGroupsPanel groups={(groupsRes.data ?? []) as LineGroup[]} />
+        <BillingPanel schedule={(billingRes.data as BillingSchedule | null) ?? null} />
+      </div>
 
       <ApplyUrlBlock token={application.token} />
 
@@ -218,6 +305,8 @@ export default async function ApplicationDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <HistoryPanel history={(historyRes.data ?? []) as StatusHistory[]} />
 
       <div>
         <h2 className="text-lg font-bold text-ink mb-3">提出書類</h2>

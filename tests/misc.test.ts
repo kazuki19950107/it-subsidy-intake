@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { parseCsv, parseImportCsv } from '@/lib/cases/csvImport';
+import { missingContractVars, renderContractHtml, renderContractText } from '@/lib/contracts/template';
+import { validateTaxCert1 } from '@/lib/claude/extractors/taxCertificate1';
+import { validateFinancialStatements } from '@/lib/claude/extractors/financialStatements';
+import { mergeDocRules, requiredDocsFor } from '@/lib/docRules/defaults';
+
+describe('parseCsv', () => {
+  it('クォート・改行・BOM', () => {
+    expect(parseCsv('﻿a,b\r\n"x,1","y ""z"""\n\n')).toEqual([
+      ['a', 'b'],
+      ['x,1', 'y "z"'],
+    ]);
+  });
+});
+
+describe('parseImportCsv', () => {
+  it('見出しから列を対応づけ、値を整える', () => {
+    const r = parseImportCsv('会社名,法人番号,回次,補助金額,ツール,区分,謎\nMEM株式会社,1234-5678-90123,３次,"1,500,000",bu,,x\n,,,,,,\n');
+    expect(r.errors).toEqual([]);
+    expect(r.unknownHeaders).toEqual(['謎']);
+    expect(r.rows[0]).toMatchObject({
+      line: 2,
+      company_name: 'MEM株式会社',
+      corporate_number: '1234567890123',
+      round: 3,
+      subsidy_amount: 1500000,
+      tool_code: 'BU',
+      applicant_type: 'corporation',
+    });
+  });
+  it('誤りを行番号つきで返す', () => {
+    const r = parseImportCsv('会社名,法人番号,回次\nA,123,x\n,1,2\n');
+    expect(r.errors.map((e) => e.line)).toEqual([2, 2, 3]);
+  });
+  it('会社名の見出しが無い', () => {
+    expect(parseImportCsv('名前\nA').errors[0].message).toContain('会社名');
+  });
+});
+
+describe('contract template', () => {
+  it('差し込みと HTML のエスケープ', () => {
+    const t = '{{company_name}}と{{agent_name}}\n\n住所 {{address}}';
+    expect(renderContractText(t, { company_name: 'A社', agent_name: 'Assemble' })).toBe('A社とAssemble\n\n住所 （未入力）');
+    expect(renderContractHtml('{{company_name}}', { company_name: '<b>' })).toBe('<p>&lt;b&gt;</p>');
+    expect(missingContractVars(t, { company_name: 'A社' })).toEqual(['agent_name', 'address']);
+  });
+});
+
+describe('書類の判定設定', () => {
+  it('納税証明書は既定で その3 を求め、その3 なら税目は問わない', () => {
+    expect(validateTaxCert1({ certificate_type: 'その3', tax_category: 'その他', issuer: '○○税務署長' })).toEqual([]);
+    expect(validateTaxCert1({ certificate_type: 'その1', tax_category: '法人税', issuer: '○○税務署長' })[0].message).toContain('その3');
+  });
+  it('その1 に設定すれば税目も確認する', () => {
+    const errs = validateTaxCert1(
+      { certificate_type: 'その1', tax_category: '消費税', issuer: '○○税務署長' },
+      { certificate_type: 'その1' },
+    );
+    expect(errs.map((e) => e.field)).toEqual(['tax_category']);
+  });
+  it('決算書の必要書類を設定で変えられる（キャッシュフロー計算書）', () => {
+    const data = { document_types_detected: ['PL', 'SGA', 'BS'] as Array<'PL' | 'SGA' | 'BS'>, fiscal_period_to: new Date().toISOString().slice(0, 10) };
+    expect(validateFinancialStatements(data).filter((e) => e.level === 'error')).toEqual([]);
+    const withCf = validateFinancialStatements(data, { required_sections: ['PL', 'BS', 'CF'] });
+    expect(withCf.map((e) => e.message).join()).toContain('キャッシュフロー計算書');
+  });
+  it('DB の上書きを重ねる', () => {
+    const rules = mergeDocRules([{ doc_type: 'tax_cert_1', required_corporation: false, params: { certificate_type: 'その1' } }]);
+    expect(rules.tax_cert_1.params.certificate_type).toBe('その1');
+    expect(requiredDocsFor('corporation', rules)).toEqual(['certificate_of_history', 'financial_statements']);
+    expect(requiredDocsFor('sole_proprietor')).toEqual(['id_document', 'tax_return', 'blue_form', 'tax_cert_2']);
+  });
+});

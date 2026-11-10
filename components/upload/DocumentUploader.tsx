@@ -62,6 +62,8 @@ type Props = {
   label: string;
   description?: string;
   required?: boolean;
+  /** input[type=file] の accept（既定は画像とPDF） */
+  accept?: string;
   existingDocs?: UploadedDoc[];
   onChange?: (docs: UploadedDoc[]) => void;
 };
@@ -72,6 +74,7 @@ export function DocumentUploader({
   label,
   description,
   required = true,
+  accept = 'image/*,application/pdf',
   existingDocs = [],
   onChange,
 }: Props) {
@@ -295,7 +298,7 @@ export function DocumentUploader({
           <label className="cursor-pointer">
             <input
               type="file"
-              accept="image/*,application/pdf"
+              accept={accept}
               multiple
               className="hidden"
               disabled={uploading}

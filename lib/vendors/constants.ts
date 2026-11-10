@@ -1,8 +1,8 @@
 /** 申請一覧の ?vendor= で「ベンダー未設定」を表す値（server / client 双方から参照） */
 export const VENDOR_FILTER_NONE = 'none';
 
-/** 申請一覧の ?status= の値。未指定は 'open'（送信済・完了を除く対応中のみ） */
-export const STATUS_FILTER_DEFAULT = 'open';
+/** 案件一覧の ?status=（申請フォームの状態）。未指定は 'all'。案件管理では送信後の案件も追うため */
+export const STATUS_FILTER_DEFAULT = 'all';
 export const STATUS_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'open', label: '対応中のみ（送信済・完了を除く）' },
   { value: 'all', label: 'すべて' },

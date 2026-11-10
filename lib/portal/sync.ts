@@ -4,6 +4,22 @@ import { decryptSecret } from '@/lib/vendors/crypto';
 import { auditLog } from '@/lib/utils/logger';
 import type { PortalSyncRun, VendorContact } from '@/lib/supabase/types';
 import { scrapePortalCases, PortalError } from './scraper';
+import {
+  corporateNumberFromRaw,
+  diffPortalRows,
+  matchPortalRow,
+  type MatchableCase,
+  type PortalStatusChange,
+} from './diff';
+import { addHistory, applyPortalStatus } from '@/lib/cases/service';
+
+export type CaseStatusChange = {
+  applicationId: string;
+  companyName: string | null;
+  applicationNo: string;
+  from: string | null;
+  to: string | null;
+};
 
 export type SyncResult = {
   runId: string;
@@ -13,7 +29,31 @@ export type SyncResult = {
   matched: number;
   durationMs: number;
   warnings: string[];
+  /** ポータル上で状態が変わった・新しく出てきた案件（案件に紐づかないものも含む） */
+  portalChanges: PortalStatusChange[];
+  /** 当システムの案件で、ポータルの状態が変わったもの */
+  caseChanges: CaseStatusChange[];
 };
+
+/** 状態が変わった案件を社内用グループ向けの 1 通にまとめる */
+export function buildChangeSummary(results: SyncResult[]): string | null {
+  const caseChanges = results.flatMap((r) => r.caseChanges);
+  const others = results.flatMap((r) => r.portalChanges).filter(
+    (p) => !caseChanges.some((c) => c.applicationNo === p.application_no),
+  );
+  if (caseChanges.length === 0 && others.length === 0) return null;
+  const lines = ['【ポータル同期】状態が変わった案件'];
+  for (const c of caseChanges.slice(0, 30)) {
+    lines.push(`・${c.companyName ?? c.applicationNo}: ${c.from ?? '（なし）'} → ${c.to ?? '（なし）'}`);
+  }
+  if (caseChanges.length > 30) lines.push(`ほか ${caseChanges.length - 30}件`);
+  if (others.length > 0) {
+    lines.push('', `案件に紐づいていない変化: ${others.length}件（新規 ${others.filter((o) => o.isNew).length}件）`);
+  }
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) lines.push('', `${appUrl}/admin/portal`);
+  return lines.join('\n');
+}
 
 /** ポータルの認証情報を持つ有効なベンダー一覧 */
 export async function listSyncableVendors(): Promise<VendorContact[]> {
@@ -62,6 +102,16 @@ export async function syncVendorPortal(
     const { rows, warnings, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password);
     const now = new Date().toISOString();
 
+    // 前回の取得結果（このベンダー分）と比べて、状態が変わった・新しく出てきた案件を出す
+    const { data: prevRows } = await supabase
+      .from('portal_cases')
+      .select('application_no, status')
+      .eq('vendor_contact_id', vendorId);
+    const previous = new Map<string, string | null>(
+      ((prevRows ?? []) as Array<{ application_no: string; status: string | null }>).map((r) => [r.application_no, r.status]),
+    );
+    const portalChanges = diffPortalRows(previous, rows);
+
     if (rows.length > 0) {
       const payload = rows.map((r) => ({
         vendor_contact_id: vendorId,
@@ -85,25 +135,49 @@ export async function syncVendorPortal(
       }
     }
 
-    // 交付申請番号が一致する申請にステータスを書き戻す
-    const byNo = new Map(rows.map((r) => [r.application_no, r]));
+    // 案件と照合する: 申請番号 → 法人番号（一致すれば申請番号を自動で設定）→ 会社名（候補のみ・詳細画面で人が確定）
     const { data: apps } = await supabase
       .from('applications')
-      .select('id, portal_application_no')
-      .not('portal_application_no', 'is', null);
+      .select('id, portal_application_no, corporate_number, company_name, applicant_name, portal_status');
+    const cases = (apps ?? []) as Array<
+      MatchableCase & { portal_status: string | null }
+    >;
     let matched = 0;
-    for (const a of (apps ?? []) as Array<{ id: string; portal_application_no: string }>) {
-      const r = byNo.get(a.portal_application_no);
-      if (!r) continue;
+    const caseChanges: CaseStatusChange[] = [];
+    const seenNo = new Set<string>();
+    for (const r of rows) {
+      if (seenNo.has(r.application_no)) continue;
+      seenNo.add(r.application_no);
+      const m = matchPortalRow(
+        { application_no: r.application_no, applicant_name: r.applicant_name, corporate_number: corporateNumberFromRaw(r.raw) },
+        cases,
+      );
+      if (m.kind !== 'application_no' && m.kind !== 'corporate_number') continue;
+      const c = cases.find((x) => x.id === m.caseId)!;
       matched++;
-      await supabase
-        .from('applications')
-        .update({
-          portal_status: r.status,
-          portal_status_updated_on: r.status_updated_on,
-          portal_synced_at: now,
-        })
-        .eq('id', a.id);
+      const update: Record<string, unknown> = {
+        portal_status: r.status,
+        portal_status_updated_on: r.status_updated_on,
+        portal_synced_at: now,
+      };
+      if (m.kind === 'corporate_number') {
+        update.portal_application_no = r.application_no;
+        c.portal_application_no = r.application_no;
+        await addHistory(c.id, 'portal_application_no', null, r.application_no, { type: 'portal', name: '法人番号で照合' });
+      }
+      await supabase.from('applications').update(update).eq('id', c.id);
+      if ((c.portal_status ?? '') !== (r.status ?? '')) {
+        await addHistory(c.id, 'portal_status', c.portal_status, r.status, { type: 'portal' });
+        caseChanges.push({
+          applicationId: c.id,
+          companyName: c.company_name ?? c.applicant_name ?? r.applicant_name,
+          applicationNo: r.application_no,
+          from: c.portal_status,
+          to: r.status,
+        });
+        c.portal_status = r.status;
+        await applyPortalStatus(c.id, r.status);
+      }
     }
 
     await supabase
@@ -123,7 +197,15 @@ export async function syncVendorPortal(
       action: 'portal.synced',
       targetType: 'vendor_contact',
       targetId: vendorId,
-      metadata: { rows: rows.length, matched, trigger, yearsSearched, warnings },
+      metadata: {
+        rows: rows.length,
+        matched,
+        trigger,
+        yearsSearched,
+        warnings,
+        portalChanges: portalChanges.length,
+        caseChanges: caseChanges.length,
+      },
     });
 
     return {
@@ -134,6 +216,8 @@ export async function syncVendorPortal(
       matched,
       durationMs: Date.now() - startedAt,
       warnings,
+      portalChanges,
+      caseChanges,
     };
   } catch (e) {
     const message =

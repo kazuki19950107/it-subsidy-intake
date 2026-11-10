@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { runCrossCheck } from '@/lib/validation/crossCheck';
-import { REQUIRED_DOCS } from '@/lib/claude/extractors';
+import { getDocRules } from '@/lib/docRules/settings';
+import { requiredDocsFor } from '@/lib/docRules/defaults';
+import { reachMilestone } from '@/lib/cases/service';
+import { notifyInternal } from '@/lib/line/notify';
 import { auditLog } from '@/lib/utils/logger';
 import type { Application, Document } from '@/lib/supabase/types';
 
@@ -40,7 +43,8 @@ export async function POST(req: NextRequest) {
   const documents = (docs ?? []) as Document[];
 
   // 必須書類チェック
-  const required = REQUIRED_DOCS[app.applicant_type];
+  const rules = await getDocRules();
+  const required = requiredDocsFor(app.applicant_type, rules);
   const uploadedTypes = new Set(documents.map((d) => d.doc_type));
   const missing = required.filter((t) => !uploadedTypes.has(t));
   if (missing.length > 0) {
@@ -72,7 +76,10 @@ export async function POST(req: NextRequest) {
     eTaxReceipt: pick(byType.e_tax_receipt),
   };
 
-  const crossCheckResults = runCrossCheck(app.applicant_type, extracted, documents);
+  const crossCheckResults = runCrossCheck(app.applicant_type, extracted, documents, {
+    rules,
+    registered: { company_name: app.company_name, corporate_number: app.corporate_number },
+  });
   const hasBlockingErrors = crossCheckResults.some((r) => r.level === 'error');
 
   // 基本情報の必須項目チェック
@@ -123,6 +130,18 @@ export async function POST(req: NextRequest) {
       cross_check_count: crossCheckResults.length,
     },
   });
+
+  // 書類提出の節目（段階を自動で進める）と、社内用グループへの通知
+  await reachMilestone(application_id, 'documents_submitted', { type: 'customer', name: app.applicant_name }, now);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  await notifyInternal(
+    'documents_submitted',
+    `【書類提出】${app.company_name || app.applicant_name || '（名称未入力）'} の書類がそろい、送信されました。` +
+      (crossCheckResults.length > 0 ? `
+確認事項 ${crossCheckResults.length}件` : '') +
+      (appUrl ? `
+${appUrl}/admin/dashboard/${application_id}` : ''),
+  );
 
   return NextResponse.json({
     ok: true,

@@ -11,6 +11,7 @@ import { extractTaxReturn, validateTaxReturn } from './taxReturn';
 import { extractBlueForm, validateBlueForm } from './blueForm';
 import { extractETaxReceipt } from './eTaxReceipt';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
+import { DEFAULT_DOC_RULES, type DocRules } from '@/lib/docRules/defaults';
 
 export type RunExtractionResult = {
   data: Record<string, unknown>;
@@ -22,6 +23,7 @@ export type RunExtractionResult = {
 export async function runExtractor(
   docType: DocType,
   ocrText: string,
+  rules: DocRules = DEFAULT_DOC_RULES,
 ): Promise<RunExtractionResult> {
   switch (docType) {
     case 'certificate_of_history': {
@@ -38,7 +40,7 @@ export async function runExtractor(
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
-        validationErrors: validateTaxCert1(r.data),
+        validationErrors: validateTaxCert1(r.data, rules.tax_cert_1.params),
         usage: r.usage,
       };
     }
@@ -56,7 +58,7 @@ export async function runExtractor(
       return {
         data: r.data as unknown as Record<string, unknown>,
         confidence: r.confidence,
-        validationErrors: validateFinancialStatements(r.data),
+        validationErrors: validateFinancialStatements(r.data, rules.financial_statements.params),
         usage: r.usage,
       };
     }

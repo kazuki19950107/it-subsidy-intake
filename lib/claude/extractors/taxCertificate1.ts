@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { extractFromText } from './base';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
+import { DEFAULT_DOC_RULES, type DocRuleParams } from '@/lib/docRules/defaults';
 
 export const TaxCert1Schema = z.object({
   certificate_type: z.enum(['その1', 'その2', 'その3', 'その4', 'unknown']),
@@ -53,16 +54,21 @@ export async function extractTaxCertificate1(text: string) {
   });
 }
 
-export function validateTaxCert1(data: TaxCert1Data): CrossCheckResult[] {
+export function validateTaxCert1(
+  data: Pick<TaxCert1Data, 'certificate_type' | 'tax_category' | 'issuer'>,
+  params: DocRuleParams = DEFAULT_DOC_RULES.tax_cert_1.params,
+): CrossCheckResult[] {
   const errors: CrossCheckResult[] = [];
-  if (data.certificate_type !== 'その1') {
+  const required = params.certificate_type ?? 'その3';
+  if (data.certificate_type !== required) {
     errors.push({
       level: 'error',
       field: 'certificate_type',
-      message: `納税証明書が「その1」ではありません（検出: ${data.certificate_type}）。その1を取得してください。`,
+      message: `納税証明書が「${required}」ではありません（検出: ${data.certificate_type}）。${required}を取得してください。`,
     });
   }
-  if (data.tax_category !== '法人税') {
+  // その3（未納税額がないことの証明）は複数の税目をまとめて証明するため、税目のチェックは その1・その2 のときだけ
+  if ((required === 'その1' || required === 'その2') && data.tax_category !== '法人税') {
     errors.push({
       level: 'error',
       field: 'tax_category',

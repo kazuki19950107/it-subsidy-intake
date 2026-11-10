@@ -3,6 +3,49 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { auditLog } from '@/lib/utils/logger';
 import { normalizeApplicationNo } from '@/lib/portal/normalize';
 import { z } from 'zod';
+import { normalizeCorporateNumber, normalizeName } from '@/lib/portal/match';
+import { MILESTONES, MILESTONE_COLUMNS } from '@/lib/cases/constants';
+import {
+  addHistory,
+  applyPortalStatus,
+  changeStage,
+  recalcFeesAndBilling,
+  setMilestoneDate,
+} from '@/lib/cases/service';
+import type { Application } from '@/lib/supabase/types';
+
+const nullableText = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v == null || v.trim() === '' ? null : v.trim()));
+const nullableUuid = z
+  .string()
+  .uuid()
+  .nullable()
+  .optional()
+  .or(z.literal('').transform(() => null));
+const nullableInt = z.number().int().nonnegative().nullable().optional();
+
+// 履歴に残す案件の項目と表示名
+const TRACKED: Record<string, string> = {
+  company_name: '会社名',
+  corporate_number: '法人番号',
+  representative_name: '代表者',
+  address: '所在地',
+  applicant_name: '担当者名',
+  phone: '電話番号',
+  email: 'メール',
+  tool_id: 'ツール',
+  round: '回次',
+  staff_account_id: '社内担当',
+  referrer: '紹介元',
+  subsidy_amount: '補助金額',
+  portal_application_no: '申請番号',
+  vendor_contact_id: 'ベンダー',
+};
 
 // 管理者が編集可能なフィールドのみ許容
 const adminPatchSchema = z.object({
@@ -22,7 +65,24 @@ const adminPatchSchema = z.object({
     .max(50)
     .nullable()
     .optional()
-    .transform((v) => normalizeApplicationNo(v)),
+    .transform((v) => (v === undefined ? undefined : normalizeApplicationNo(v))),
+  // 案件の項目
+  company_name: nullableText(200),
+  corporate_number: nullableText(20),
+  representative_name: nullableText(100),
+  address: nullableText(300),
+  applicant_name: nullableText(100),
+  phone: nullableText(50),
+  email: nullableText(200),
+  tool_id: nullableUuid,
+  round: nullableInt,
+  staff_account_id: nullableUuid,
+  referrer: nullableText(200),
+  subsidy_amount: nullableInt,
+  stage_id: z.string().uuid().optional(),
+  milestones: z
+    .record(z.enum(MILESTONES), z.string().datetime({ offset: true }).nullable())
+    .optional(),
 });
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -88,7 +148,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const supabase = createServiceRoleClient();
-  const update: Record<string, unknown> = { ...parsed.data };
+  const { stage_id: stageId, milestones, ...fields } = parsed.data;
+  const update: Record<string, unknown> = { ...fields };
+  if ('corporate_number' in fields && fields.corporate_number) {
+    const n = normalizeCorporateNumber(fields.corporate_number);
+    if (!n) return NextResponse.json({ error: '法人番号は13桁の数字で入力してください' }, { status: 400 });
+    update.corporate_number = n;
+  }
+  if ('company_name' in fields) update.company_name_normalized = normalizeName(fields.company_name) || null;
+
+  const { data: beforeRow } = await supabase.from('applications').select('*').eq('id', id).maybeSingle();
+  const before = beforeRow as Application | null;
+  if (!before) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   // 交付申請番号を変更したら、取込済みのポータル案件からステータスを即時反映する
   if ('portal_application_no' in parsed.data) {
@@ -121,6 +192,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
+  // 変更履歴
+  const actor = { type: 'staff' as const };
+  for (const [k, label] of Object.entries(TRACKED)) {
+    if (!(k in update)) continue;
+    await addHistory(id, label, (before as unknown as Record<string, unknown>)[k], update[k], actor);
+  }
+  if ('portal_application_no' in update && update.portal_status !== before.portal_status) {
+    await addHistory(id, 'portal_status', before.portal_status, update.portal_status, { type: 'portal' });
+    await applyPortalStatus(id, (update.portal_status as string | null) ?? null);
+  }
+  if (milestones) {
+    for (const [m, at] of Object.entries(milestones)) {
+      const col = MILESTONE_COLUMNS[m as keyof typeof MILESTONE_COLUMNS];
+      const prev = (before as unknown as Record<string, string | null>)[col];
+      if ((prev ?? null) === (at ?? null)) continue;
+      await setMilestoneDate(id, m as (typeof MILESTONES)[number], at, actor);
+    }
+  }
+  if (stageId && stageId !== before.stage_id) {
+    await changeStage(id, stageId, actor);
+  } else if ('subsidy_amount' in update || 'tool_id' in update) {
+    await recalcFeesAndBilling(id, actor);
+  }
+
   await auditLog({
     actorType: 'admin',
     action: 'application.admin_updated',
@@ -129,5 +224,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     metadata: { fields: Object.keys(parsed.data) },
   });
 
-  return NextResponse.json({ application: data });
+  const { data: latest } = await supabase.from('applications').select('*').eq('id', id).maybeSingle();
+  return NextResponse.json({ application: latest ?? data });
 }

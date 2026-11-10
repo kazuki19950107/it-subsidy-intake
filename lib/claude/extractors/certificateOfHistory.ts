@@ -21,7 +21,7 @@ OCRで抽出されたテキストから、指定されたJSONスキーマに従�
 OCRノイズで読み違えと推測される箇所は無理に値を入れず null にしてください。`;
 
 export const USER_PROMPT = `以下のOCRテキストは履歴事項全部証明書（商業登記簿謄本）です。以下の項目を抽出してください：
-- company_number: 会社法人等番号（13桁の数字、ハイフンは除く）
+- company_number: 会社法人等番号（通常12桁の数字。ハイフンは除く。13桁の法人番号が書かれていればそれでもよい）
 - company_name: 名称（商号）
 - head_office_address: 本店または主たる事務所の住所
 - incorporation_date: 法人成立の年月日（YYYY-MM-DD形式）

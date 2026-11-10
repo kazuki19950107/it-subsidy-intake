@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DocumentUploader } from '@/components/upload/DocumentUploader';
-import { DOC_TYPE_LABELS, REQUIRED_DOCS } from '@/lib/claude/docTypes';
+import { ACCEPT_ATTR, requiredDocsFor, type DocRules } from '@/lib/docRules/defaults';
 import type { Document, DocType } from '@/lib/supabase/types';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
 
@@ -13,11 +13,12 @@ type Props = {
   applicationId: string;
   applicantType: 'corporation' | 'sole_proprietor';
   documents: Document[];
+  rules: DocRules;
 };
 
 const DESCRIPTIONS: Record<DocType, string> = {
   certificate_of_history: '法務局で取得する登記簿謄本。発行から3ヶ月以内のものを提出してください。',
-  tax_cert_1: '税務署で取得する「その1（納税額・未納税額）」の法人税に関する証明書。消費税の証明書は不可です。',
+  tax_cert_1: '税務署で取得する「その3（未納税額がないことの証明）」の納税証明書。',
   tax_cert_2: '税務署で取得する「その2（所得金額）」の所得税に関する証明書。',
   financial_statements: '直近1期分の決算書（損益計算書 P/L・販管費内訳・貸借対照表 B/S の3点）をアップロードしてください。会計事務所から渡されたPDFをそのまま投げ込めばOKです。販管費内訳が別ページの場合は、そのページも含めてください。',
   id_document: '運転免許証（表裏両面）、運転経歴証明書、または住民票（3ヶ月以内）のいずれか。',
@@ -27,7 +28,7 @@ const DESCRIPTIONS: Record<DocType, string> = {
   gbiz_screenshot: 'GビズID のマイページ画面（取得済みの場合のみ）',
 };
 
-export function DocumentsUploadClient({ token, applicationId, applicantType, documents }: Props) {
+export function DocumentsUploadClient({ token, applicationId, applicantType, documents, rules }: Props) {
   const [allDocs, setAllDocs] = useState(documents);
 
   const groupedByType = allDocs.reduce<Record<string, Document[]>>((acc, d) => {
@@ -35,7 +36,7 @@ export function DocumentsUploadClient({ token, applicationId, applicantType, doc
     return acc;
   }, {});
 
-  const required = REQUIRED_DOCS[applicantType];
+  const required = requiredDocsFor(applicantType, rules);
   const allRequired: DocType[] = applicantType === 'sole_proprietor'
     ? [...required, 'e_tax_receipt']
     : required;
@@ -65,8 +66,9 @@ export function DocumentsUploadClient({ token, applicationId, applicantType, doc
             key={docType}
             applicationId={applicationId}
             docType={docType}
-            label={DOC_TYPE_LABELS[docType]}
-            description={DESCRIPTIONS[docType]}
+            label={rules[docType].label}
+            description={rules[docType].description || DESCRIPTIONS[docType]}
+            accept={ACCEPT_ATTR[rules[docType].accept]}
             required={isRequired}
             existingDocs={existing}
             onChange={(updated) => {

@@ -12,7 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div className="min-w-0">
               <div className="text-sm font-bold text-ink leading-tight truncate">
-                IT補助金申請 管理画面
+                補助金 案件管理
               </div>
               <div className="text-[11px] text-mute">AzCreate</div>
             </div>

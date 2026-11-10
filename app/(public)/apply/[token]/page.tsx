@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { formatJpDate } from '@/lib/utils/dateCheck';
+import { getDocRules } from '@/lib/docRules/settings';
+import { requiredDocsFor } from '@/lib/docRules/defaults';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,9 @@ export default async function LandingPage({
     .eq('token', token)
     .maybeSingle();
   if (!app) notFound();
+  const rules = await getDocRules();
+  const corpDocs = requiredDocsFor('corporation', rules).map((t) => rules[t].label);
+  const soleDocs = requiredDocsFor('sole_proprietor', rules).map((t) => rules[t].label);
 
   return (
     <div className="space-y-8">
@@ -119,9 +124,9 @@ export default async function LandingPage({
             <CardContent className="pt-4">
               <div className="text-xs font-semibold text-teal mb-1">法人の方</div>
               <ul className="text-sm space-y-1 list-disc list-inside text-charcoal">
-                <li>履歴事項全部証明書（3ヶ月以内）</li>
-                <li>納税証明書その1（法人税）</li>
-                <li>決算書（P/L、販管費、B/S）</li>
+                {corpDocs.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
               </ul>
             </CardContent>
           </Card>
@@ -129,10 +134,9 @@ export default async function LandingPage({
             <CardContent className="pt-4">
               <div className="text-xs font-semibold text-teal mb-1">個人事業主の方</div>
               <ul className="text-sm space-y-1 list-disc list-inside text-charcoal">
-                <li>本人確認書類（運転免許証など）</li>
-                <li>確定申告書 第一表</li>
-                <li>青色申告決算書</li>
-                <li>納税証明書その2（所得税）</li>
+                {soleDocs.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
               </ul>
             </CardContent>
           </Card>

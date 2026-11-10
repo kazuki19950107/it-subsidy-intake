@@ -12,7 +12,36 @@ export type ApplicationWithProgress = Application & {
   _progress: number;
   _step: string;
   _vendorName?: string | null;
+  _stage?: { name: string; color: string } | null;
+  _toolCode?: string | null;
+  _staffName?: string | null;
+  _nextDue?: string | null;
+  _openChecks?: number;
 };
+
+function StageBadge({ stage }: { stage?: { name: string; color: string } | null }) {
+  if (!stage) return <span className="text-mute text-xs">-</span>;
+  return (
+    <span
+      className="inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold text-white whitespace-nowrap"
+      style={{ backgroundColor: stage.color }}
+    >
+      {stage.name}
+    </span>
+  );
+}
+
+function DueLabel({ due }: { due?: string | null }) {
+  if (!due) return <span className="text-mute text-xs">-</span>;
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const overdue = due < today;
+  return (
+    <span className={`text-xs whitespace-nowrap ${overdue ? 'text-accent font-semibold' : 'text-charcoal'}`}>
+      {due.slice(5).replace('-', '/')}
+      {overdue ? ' 期限切れ' : ''}
+    </span>
+  );
+}
 
 function portalVariant(s: string | null): 'default' | 'muted' | 'success' | 'warning' | 'destructive' | 'secondary' {
   if (!s) return 'muted';
@@ -61,13 +90,13 @@ export function ApplicationList({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ステータス</TableHead>
-              <TableHead>申請者</TableHead>
-              <TableHead>種別</TableHead>
-              <TableHead>ベンダー</TableHead>
+              <TableHead>段階</TableHead>
+              <TableHead>会社・申請者</TableHead>
+              <TableHead>回次・ツール</TableHead>
+              <TableHead>担当</TableHead>
               <TableHead>ポータル</TableHead>
-              <TableHead className="w-[180px]">進捗</TableHead>
-              <TableHead>送信日時</TableHead>
+              <TableHead>次の期限</TableHead>
+              <TableHead className="w-[150px]">フォーム</TableHead>
               <TableHead>更新</TableHead>
               <TableHead className="w-[60px]"></TableHead>
             </TableRow>
@@ -78,7 +107,7 @@ export function ApplicationList({
               return (
                 <TableRow key={a.id}>
                   <TableCell>
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <StageBadge stage={a._stage} />
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
@@ -93,23 +122,16 @@ export function ApplicationList({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
-                    {a.applicant_type === 'corporation'
-                      ? '法人'
-                      : a.applicant_type === 'sole_proprietor'
-                        ? '個人事業主'
-                        : '未選択'}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {a._vendorName ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-mute shrink-0" />
-                        <span className="truncate max-w-[160px]">{a._vendorName}</span>
-                      </span>
-                    ) : (
-                      <span className="text-mute text-xs">未設定</span>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {a.round != null ? `${a.round}次` : '-'} {a._toolCode ?? ''}
+                    {a._vendorName && (
+                      <div className="flex items-center gap-1 text-[11px] text-mute">
+                        <Building2 className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-[120px]">{a._vendorName}</span>
+                      </div>
                     )}
                   </TableCell>
+                  <TableCell className="text-sm">{a._staffName ?? <span className="text-mute text-xs">-</span>}</TableCell>
                   <TableCell>
                     {a.portal_status ? (
                       <div className="space-y-0.5">
@@ -127,7 +149,12 @@ export function ApplicationList({
                     )}
                   </TableCell>
                   <TableCell>
+                    <DueLabel due={a._nextDue} />
+                    {!!a._openChecks && <div className="text-[11px] text-mute">未完了 {a._openChecks}件</div>}
+                  </TableCell>
+                  <TableCell>
                     <div className="space-y-1">
+                      <Badge variant={status.variant}>{status.label}</Badge>
                       <ProgressBar percent={a._progress} size="sm" showPercent={false} />
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-mute">{STEP_LABEL[a._step] ?? a._step}</span>
@@ -135,7 +162,6 @@ export function ApplicationList({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{a.submitted_at ? formatJpDate(a.submitted_at) : '-'}</TableCell>
                   <TableCell className="text-xs text-mute">{formatJpDate(a.updated_at)}</TableCell>
                   <TableCell>
                     <Link href={`/admin/dashboard/${a.id}`} className="text-teal hover:underline text-sm font-semibold">
@@ -160,7 +186,10 @@ export function ApplicationList({
                 className="block border border-rule rounded-lg p-3 bg-white active:bg-off-white"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <StageBadge stage={a._stage} />
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                  </div>
                   <span className="text-[11px] text-mute">{formatJpDate(a.updated_at)}</span>
                 </div>
 
@@ -171,6 +200,16 @@ export function ApplicationList({
                   <div className="text-xs text-mute truncate">{a.applicant_name}</div>
                 )}
 
+                <div className="flex items-center gap-2 mt-1 text-xs text-charcoal">
+                  {a.round != null && <span>{a.round}次</span>}
+                  {a._toolCode && <span>{a._toolCode}</span>}
+                  {a._staffName && <span className="text-mute">担当 {a._staffName}</span>}
+                  {a._nextDue && (
+                    <span>
+                      期限 <DueLabel due={a._nextDue} />
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-2 text-xs">
                   <span className="text-mute">
                     {a.applicant_type === 'corporation'

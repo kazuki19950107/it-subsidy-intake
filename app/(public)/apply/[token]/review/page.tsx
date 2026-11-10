@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { runCrossCheck } from '@/lib/validation/crossCheck';
-import { DOC_TYPE_LABELS, REQUIRED_DOCS } from '@/lib/claude/extractors';
+import { getDocRules } from '@/lib/docRules/settings';
+import { requiredDocsFor } from '@/lib/docRules/defaults';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ValidationList } from '@/components/upload/ValidationBadge';
@@ -47,9 +48,13 @@ export default async function ReviewPage({
     blueForm: pick(byType.blue_form),
     eTaxReceipt: pick(byType.e_tax_receipt),
   };
-  const crossCheck = runCrossCheck(app.applicant_type, extracted, documents);
+  const rules = await getDocRules();
+  const crossCheck = runCrossCheck(app.applicant_type, extracted, documents, {
+    rules,
+    registered: { company_name: app.company_name, corporate_number: app.corporate_number },
+  });
 
-  const required = REQUIRED_DOCS[app.applicant_type];
+  const required = requiredDocsFor(app.applicant_type, rules);
   const missing = required.filter((t) => !byType[t]);
   const basicInfoMissing: string[] = [];
   if (!app.applicant_name) basicInfoMissing.push('氏名');
@@ -68,7 +73,7 @@ export default async function ReviewPage({
     blockers.push(`基本情報の未入力項目: ${basicInfoMissing.join('、')}`);
   }
   if (missing.length > 0) {
-    blockers.push(`未提出の必須書類: ${missing.map((t) => t).join('、')}`);
+    blockers.push(`未提出の必須書類: ${missing.map((t) => rules[t].label).join('、')}`);
   }
   if (blockingErrors.length > 0) {
     blockers.push(`書類の不備: ${blockingErrors.length}件`);
@@ -135,7 +140,7 @@ export default async function ReviewPage({
                   key={docType}
                   className="flex items-center justify-between py-2 border-b border-rule/50"
                 >
-                  <span className="text-sm">{DOC_TYPE_LABELS[docType]}</span>
+                  <span className="text-sm">{rules[docType].label}</span>
                   {doc ? (
                     <Badge variant="success">提出済</Badge>
                   ) : (

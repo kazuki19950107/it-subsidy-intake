@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { DocumentsUploadClient } from './DocumentsUploadClient';
+import { getDocRules } from '@/lib/docRules/settings';
 import type { Application, Document } from '@/lib/supabase/types';
 
 export default async function DocumentsPage({
@@ -39,6 +40,7 @@ export default async function DocumentsPage({
         applicationId={app.id}
         applicantType={app.applicant_type}
         documents={(docs ?? []) as Document[]}
+        rules={await getDocRules()}
       />
     </div>
   );
