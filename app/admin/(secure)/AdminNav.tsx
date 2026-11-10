@@ -3,19 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus, Download, Menu, X, LogOut, Building2, Landmark, MessageCircle, JapaneseYen, Settings, BookOpen } from 'lucide-react';
-
-const NAV_ITEMS = [
-  { href: '/admin/dashboard', label: '案件一覧', icon: FileText, external: false },
-  { href: '/admin/dashboard/new', label: '新規登録', icon: Plus, external: false },
-  { href: '/admin/portal', label: 'ポータル案件', icon: Landmark, external: false },
-  { href: '/admin/billing', label: '売上・請求', icon: JapaneseYen, external: false },
-  { href: '/admin/line', label: 'LINE', icon: MessageCircle, external: false },
-  { href: '/admin/settings', label: '設定', icon: Settings, external: false },
-  { href: '/admin/vendors', label: 'ベンダー', icon: Building2, external: false },
-  { href: '/api/admin/export?format=csv', label: 'CSV', icon: Download, external: true },
-  { href: '/admin/guide', label: '使い方', icon: BookOpen, external: false },
-];
+import { Menu, X, LogOut } from 'lucide-react';
+import { NAV_ITEMS } from '@/lib/admin/pages';
 
 export function AdminNav() {
   const router = useRouter();
