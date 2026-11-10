@@ -104,7 +104,7 @@ export function HistoryPanel({ history }: { history: StatusHistory[] }) {
                 </span>
                 <span className="min-w-0">
                   <span className="font-semibold">{fieldLabel(h.field)}</span>{' '}
-                  <span className="text-mute">{h.from_value ?? '（なし）'}</span> → <span>{h.to_value ?? '（なし）'}</span>
+                  <span className="text-mute">{fmt(h.from_value)}</span> → <span>{fmt(h.to_value)}</span>
                   {h.actor_name && <span className="text-mute">（{h.actor_name}）</span>}
                 </span>
               </li>
@@ -114,4 +114,10 @@ export function HistoryPanel({ history }: { history: StatusHistory[] }) {
       </CardContent>
     </Card>
   );
+}
+
+/** 履歴の値: 数字は 3 桁区切り、空は（なし） */
+function fmt(v: string | null): string {
+  if (v == null || v === '') return '（なし）';
+  return /^\d{4,}$/.test(v) ? Number(v).toLocaleString() : v;
 }

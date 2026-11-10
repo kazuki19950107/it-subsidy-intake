@@ -1,7 +1,7 @@
 // 同意書の文面（仮）。後から差し替える前提で、差し込む項目は {{変数名}} で書く。
 // 文面を変えたら TEMPLATE_VERSION も上げること（締結済みの契約には作成時の本文がそのまま残る）。
 
-export const TEMPLATE_VERSION = 'draft-2026-11-10';
+export const TEMPLATE_VERSION = 'draft-2026-11-11';
 export const CONTRACT_TITLE = '補助金申請代行に関する同意書';
 
 export type ContractVars = {
@@ -43,7 +43,7 @@ export const CONTRACT_TEMPLATE = `{{company_name}}（以下「甲」という）
 甲は、申請に必要な書類および情報を、乙の求めに応じて速やかに、かつ正確に提供する。
 
 第4条（報酬）
-甲は、乙に対し、{{fee_description}}を支払う。
+甲は、乙に対し、{{fee_description}}支払う。
 
 第5条（秘密保持）
 乙は、本同意書に基づき知り得た甲の情報を、本補助金の申請以外の目的に使用せず、第三者に開示しない。

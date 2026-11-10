@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import 'server-only';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/vendors/crypto';
@@ -50,7 +51,7 @@ export function buildChangeSummary(results: SyncResult[]): string | null {
   if (others.length > 0) {
     lines.push('', `案件に紐づいていない変化: ${others.length}件（新規 ${others.filter((o) => o.isNew).length}件）`);
   }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const appUrl = appBaseUrl();
   if (appUrl) lines.push('', `${appUrl}/admin/portal`);
   return lines.join('\n');
 }

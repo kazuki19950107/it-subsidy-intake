@@ -178,7 +178,10 @@ export default async function ApplicationDetailPage({
         </Card>
       )}
 
-      <CaseInfoEditor app={application} tools={options.tools} accounts={options.accounts} stages={options.stages} />
+      <CaseInfoEditor
+        key={`${application.updated_at}-${application.stage_id}-${application.fee_estimated}-${application.fee_confirmed}`}
+        app={application}
+        tools={options.tools} accounts={options.accounts} stages={options.stages} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <ChecksPanel applicationId={application.id} checks={checks} defs={options.checkDefs} />

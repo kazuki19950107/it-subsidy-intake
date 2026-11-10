@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { runCrossCheck } from '@/lib/validation/crossCheck';
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   // 書類提出の節目（段階を自動で進める）と、社内用グループへの通知
   await reachMilestone(application_id, 'documents_submitted', { type: 'customer', name: app.applicant_name }, now);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const appUrl = appBaseUrl('');
   await notifyInternal(
     'documents_submitted',
     `【書類提出】${app.company_name || app.applicant_name || '（名称未入力）'} の書類がそろい、送信されました。` +

@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import 'server-only';
 import { randomBytes } from 'node:crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -12,7 +13,7 @@ import { noTimestamp, type TimestampProvider } from './timestamp';
 export const AGENT_NAME = process.env.AGENT_COMPANY_NAME || 'Assemble';
 
 function feeDescription(tool: Tool | null): string {
-  if (!tool) return '別途定める報酬';
+  if (!tool) return '別途定める報酬を';
   const amount =
     tool.fee_method === 'fixed'
       ? `${Number(tool.fee_fixed ?? 0).toLocaleString()}円（税別）`
@@ -172,6 +173,6 @@ export async function signedPdfUrl(contract: Contract): Promise<string | null> {
 }
 
 export function contractUrl(token: string): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = appBaseUrl('http://localhost:3000');
   return `${appUrl}/contract/${token}`;
 }

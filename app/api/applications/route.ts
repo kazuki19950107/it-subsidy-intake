@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
     metadata: { token },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = appBaseUrl('http://localhost:3000');
   return NextResponse.json({
     id: data.id,
     token,

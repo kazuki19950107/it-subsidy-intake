@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getQuota, lineConfigured } from '@/lib/line/client';
 import type { LineGroup, LineSendFailure } from '@/lib/supabase/types';
@@ -28,7 +29,7 @@ export default async function LinePage() {
       quotaError = (e as Error).message;
     }
   }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const appUrl = appBaseUrl('');
 
   return (
     <div className="space-y-6">

@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/utils/appUrl';
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -33,7 +34,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     targetId: id,
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = appBaseUrl('http://localhost:3000');
   return NextResponse.json({
     share_url: `${appUrl}/share/${token}`,
     expires_at: expires.toISOString(),

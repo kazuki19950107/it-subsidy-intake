@@ -198,8 +198,26 @@ export async function setMilestoneDate(
   const col = MILESTONE_COLUMNS[milestone];
   const before = (app as unknown as Record<string, string | null>)[col];
   await supabase.from('applications').update({ [col]: at }).eq('id', applicationId);
-  await addHistory(applicationId, `milestone:${milestone}`, before, at, actor);
+  await addHistory(applicationId, `milestone:${milestone}`, jstDate(before), jstDate(at), actor);
+  // 日付を入れたら、その節目の段階が今より先なら進める（消したときは段階を戻さない）
+  if (at) {
+    const stages = await listStages();
+    const target = stageForMilestone(stages, milestone);
+    const { data } = await supabase.from('applications').select('stage_id').eq('id', applicationId).single();
+    const current = stages.find((s) => s.id === data?.stage_id) ?? null;
+    if (target && isForward(current, target)) {
+      await changeStage(applicationId, target.id, actor);
+      return;
+    }
+  }
   await recalcFeesAndBilling(applicationId, actor);
+}
+
+/** ISO 日時 → 日本時間の YYYY-MM-DD（履歴の表示用） */
+function jstDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? iso : new Date(t + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
 /** ポータルの状態に合わせて段階を進める（先へだけ） */
