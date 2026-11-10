@@ -116,8 +116,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       );
   }
 
-  // Storage 上のファイルを削除（DB の documents は applications の CASCADE で消える）
-  const paths = documents.map((d) => d.storage_path).filter(Boolean);
+  // Storage 上のファイルを削除（DB の documents・contracts は applications の CASCADE で消える）
+  const { data: contractRows } = await supabase
+    .from('contracts')
+    .select('signed_pdf_path')
+    .eq('application_id', id);
+  const paths = [
+    ...documents.map((d) => d.storage_path),
+    ...(contractRows ?? []).map((c) => c.signed_pdf_path as string | null),
+  ].filter((p): p is string => !!p);
   if (paths.length > 0) {
     await supabase.storage.from('documents').remove(paths);
   }
