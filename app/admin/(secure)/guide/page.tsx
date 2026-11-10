@@ -41,7 +41,7 @@ function WhoBadge({ who }: { who: Who }) {
   const w = WHO[who];
   const Icon = w.icon;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.cls}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${w.cls}`}>
       <Icon className="w-3 h-3" />
       {w.label}
     </span>
