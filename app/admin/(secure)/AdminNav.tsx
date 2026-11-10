@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus, Download, Menu, X, LogOut, Building2, Landmark, MessageCircle, JapaneseYen, Settings } from 'lucide-react';
+import { FileText, Plus, Download, Menu, X, LogOut, Building2, Landmark, MessageCircle, JapaneseYen, Settings, BookOpen } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: '案件一覧', icon: FileText, external: false },
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/settings', label: '設定', icon: Settings, external: false },
   { href: '/admin/vendors', label: 'ベンダー', icon: Building2, external: false },
   { href: '/api/admin/export?format=csv', label: 'CSV', icon: Download, external: true },
+  { href: '/admin/guide', label: '使い方', icon: BookOpen, external: false },
 ];
 
 export function AdminNav() {
