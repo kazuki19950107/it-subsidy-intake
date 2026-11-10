@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { AdminNav } from './AdminNav';
 import { Logo } from '@/components/brand/Logo';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: { default: 'Tsumugi | 補助金 案件管理', template: '%s | Tsumugi' },
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -11,6 +11,7 @@ import {
   VENDOR_FILTER_NONE,
 } from '@/lib/vendors/constants';
 import { DASHBOARD_SORTS, DASHBOARD_SORT_LABELS } from '@/lib/cases/constants';
+import { readSaved, writeSaved } from '@/lib/hooks/useSavedState';
 
 const SELECT =
   'h-9 rounded-md border border-rule bg-white px-2 text-[13px] text-charcoal focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 w-full';
@@ -44,6 +45,22 @@ export function DashboardFilters({
   const get = (k: Key) => params.get(k) ?? '';
   const rawStatus = get('status');
   const currentStatus = STATUS_FILTER_OPTIONS.some((o) => o.value === rawStatus) ? rawStatus : STATUS_FILTER_DEFAULT;
+
+  // 絞り込み条件（URL のクエリ）をこのブラウザに保存し、条件なしで開いたときは前回の条件に戻す
+  const SAVE_KEY = 'dashboard.query';
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    if (params.toString() === '') {
+      const saved = readSaved<string>(SAVE_KEY);
+      if (saved) router.replace(`${pathname}?${saved}`, { scroll: false });
+    }
+  }, [params, pathname, router]);
+  useEffect(() => {
+    if (!restored.current) return;
+    writeSaved(SAVE_KEY, params.toString() || null);
+  }, [params]);
 
   const [q, setQ] = useState(get('q'));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

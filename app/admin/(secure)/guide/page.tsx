@@ -14,7 +14,7 @@ import type { DocRule } from '@/lib/docRules/defaults';
 // 文章の説明は手で書いているので、機能を変えたら該当する節も直すこと（CLAUDE.md 参照）。
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: '使い方 | 補助金 案件管理' };
+export const metadata = { title: '使い方' };
 
 const TOC = [
   { id: 'flow', label: '全体の流れ' },

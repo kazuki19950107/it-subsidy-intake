@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-AI導入補助金の申請代行（Assemble）の案件管理システム。Next.js 15 (App Router) + Supabase + Claude API + LINE Messaging API、Vercel にデプロイ。
+AI導入補助金の申請代行（Assemble）の案件管理システム。システム名は **Tsumugi**（ロゴは `components/brand/Logo.tsx`）。Next.js 15 (App Router) + Supabase + Claude API + LINE Messaging API、Vercel にデプロイ。
 仕様は `docs/spec-case-management.md`、起動と確認の手順は `README.md`。
 
 ## 使い方ページを必ず更新する

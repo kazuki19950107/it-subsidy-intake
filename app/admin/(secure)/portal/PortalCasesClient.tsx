@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useSavedState } from '@/lib/hooks/useSavedState';
 import Link from 'next/link';
 import { Search, X, AlertTriangle, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -38,11 +39,12 @@ export function PortalCasesClient({
   cases: PortalCaseWithVendor[];
   vendors: VendorSummary[];
 }) {
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('');
-  const [vendorId, setVendorId] = useState('');
-  const [year, setYear] = useState('');
-  const [linkedOnly, setLinkedOnly] = useState(false);
+  // 検索・絞り込みはこのブラウザに保存し、次に開いたときも同じ条件で表示する
+  const [q, setQ] = useSavedState('portal.q', '');
+  const [status, setStatus] = useSavedState('portal.status', '');
+  const [vendorId, setVendorId] = useSavedState('portal.vendor', '');
+  const [year, setYear] = useSavedState('portal.year', '');
+  const [linkedOnly, setLinkedOnly] = useSavedState('portal.linkedOnly', false);
 
   const statuses = useMemo(
     () => Array.from(new Set(cases.map((c) => c.status).filter(Boolean) as string[])).sort(),
