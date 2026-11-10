@@ -351,6 +351,47 @@ export default async function GuidePage() {
             </tbody>
           </table>
         </div>
+        <div className="text-xs font-semibold text-mute">お客様の入力と書類から、案件の情報に自動で入るもの</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-mute border-b border-rule">
+                <th className="py-1.5 pr-3 font-normal">案件の情報</th>
+                <th className="py-1.5 pr-3 font-normal">法人</th>
+                <th className="py-1.5 font-normal">個人事業主</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rule/50 text-xs">
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">担当者名・電話・メール・会社名</td>
+                <td className="py-1.5 pr-3" colSpan={2}>申請フォームの入力がそのまま入る（変更履歴に「申請フォーム」として残る）</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">会社名</td>
+                <td className="py-1.5 pr-3">登記簿 → 納税証明書 → 決算書</td>
+                <td className="py-1.5 text-mute">—</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">法人番号</td>
+                <td className="py-1.5 pr-3">登記簿の会社法人等番号から計算</td>
+                <td className="py-1.5 text-mute">—</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">代表者</td>
+                <td className="py-1.5 pr-3">登記簿 → 納税証明書</td>
+                <td className="py-1.5">本人確認書類 → 確定申告書の氏名</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-3 text-sm">所在地</td>
+                <td className="py-1.5 pr-3">登記簿の本店 → 納税証明書</td>
+                <td className="py-1.5">本人確認書類 → 確定申告書の住所</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Note>
+          書類から入れるのは<strong>空欄の項目だけ</strong>です。社内で入れた値は上書きせず、食い違っていれば書類の「不備」として表示します。自動で入った項目は変更履歴に「書類から自動入力」として残ります。
+        </Note>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-md border border-rule p-3">
             <div className="font-semibold text-ink mb-1">どの書類にも行う判定</div>

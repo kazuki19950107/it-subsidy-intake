@@ -5,6 +5,7 @@ import { runCrossCheck } from '@/lib/validation/crossCheck';
 import { getDocRules } from '@/lib/docRules/settings';
 import { requiredDocsFor } from '@/lib/docRules/defaults';
 import { reachMilestone } from '@/lib/cases/service';
+import { fillCaseFromDocuments } from '@/lib/cases/autofillService';
 import { notifyInternal } from '@/lib/line/notify';
 import { auditLog } from '@/lib/utils/logger';
 import type { Application, Document } from '@/lib/supabase/types';
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
   });
 
   // 書類提出の節目（段階を自動で進める）と、社内用グループへの通知
+  await fillCaseFromDocuments(application_id).catch(() => {});
   await reachMilestone(application_id, 'documents_submitted', { type: 'customer', name: app.applicant_name }, now);
   const appUrl = appBaseUrl('');
   await notifyInternal(

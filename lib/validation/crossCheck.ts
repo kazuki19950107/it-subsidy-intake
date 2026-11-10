@@ -369,3 +369,23 @@ export function runCrossCheck(
       : crossCheckSoleProprietor(docs, rules);
   return [...results, ...photoCornerIssues(documents)];
 }
+
+/** 書類一覧から照合用の抽出データを組み立てる（同じ種類が複数あれば最後のもの。手で直した値を優先） */
+export function extractedDocsFrom(
+  documents: Array<{ doc_type: DocType; ocr_result: unknown; user_corrected: unknown }>,
+): ExtractedDocs {
+  const byType: Partial<Record<DocType, Record<string, unknown> | null>> = {};
+  for (const d of documents) {
+    byType[d.doc_type] = ((d.user_corrected ?? d.ocr_result) as Record<string, unknown> | null) ?? null;
+  }
+  return {
+    certificateOfHistory: byType.certificate_of_history ?? null,
+    taxCert1: byType.tax_cert_1 ?? null,
+    taxCert2: byType.tax_cert_2 ?? null,
+    financialStatements: (byType.financial_statements ?? null) as ExtractedDocs['financialStatements'],
+    idDocument: byType.id_document ?? null,
+    taxReturn: byType.tax_return ?? null,
+    blueForm: byType.blue_form ?? null,
+    eTaxReceipt: byType.e_tax_receipt ?? null,
+  };
+}

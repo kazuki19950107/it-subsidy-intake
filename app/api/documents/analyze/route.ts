@@ -10,6 +10,7 @@ import { checkMonthlyBudget, checkApplicationBudget, logApiUsage } from '@/lib/u
 import { auditLog } from '@/lib/utils/logger';
 import { getDocRules } from '@/lib/docRules/settings';
 import { LOW_CONFIDENCE_THRESHOLD } from '@/lib/docRules/defaults';
+import { fillCaseFromDocuments } from '@/lib/cases/autofillService';
 
 export const maxDuration = 60;
 
@@ -146,6 +147,11 @@ export async function POST(req: NextRequest) {
         needs_staff_review: needsStaffReview,
       })
       .eq('id', document_id);
+
+    // 読み取った会社名・法人番号・代表者・所在地で、案件の空欄を埋める（失敗しても解析結果は返す）
+    await fillCaseFromDocuments(doc.application_id).catch((e) =>
+      console.error('[autofill]', (e as Error).message),
+    );
 
     await auditLog({
       actorType: 'system',
