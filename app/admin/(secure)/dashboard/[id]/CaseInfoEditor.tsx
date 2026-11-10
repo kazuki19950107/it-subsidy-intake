@@ -126,9 +126,12 @@ export function CaseInfoEditor({
             </select>
           </div>
           <div className="space-y-1">
-            <Label>ポータルの状態（自動更新・編集不可）</Label>
-            <div className="h-10 flex items-center px-3 rounded-md border border-rule bg-off-white text-sm">
+            <Label>ポータルの状態（ポータルから自動で取り込み）</Label>
+            <div className="h-10 flex items-center justify-between gap-2 px-3 rounded-md border border-rule bg-off-white text-sm">
               {app.portal_status ?? <span className="text-mute">未連携</span>}
+              <a href="#portal-link" className="text-xs text-teal hover:underline whitespace-nowrap">
+                {app.portal_application_no ? '紐付けを確認' : '上の「ポータル連携」で紐付ける'}
+              </a>
             </div>
           </div>
           {TEXT_FIELDS.map(([k, label]) => (

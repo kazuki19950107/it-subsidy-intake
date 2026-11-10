@@ -178,6 +178,17 @@ export default async function ApplicationDetailPage({
         </Card>
       )}
 
+      {/* ポータルとの紐付け: 状態の欄は自動更新専用なので、ここで申請番号を入れて紐付ける */}
+      <div id="portal-link" className="scroll-mt-20">
+        <PortalLinkEditor
+          key={application.portal_application_no ?? 'none'}
+          applicationId={application.id}
+          initialNo={application.portal_application_no}
+          matched={portal.matched}
+          candidates={portal.candidates}
+        />
+      </div>
+
       <CaseInfoEditor
         key={`${application.updated_at}-${application.stage_id}-${application.fee_estimated}-${application.fee_confirmed}`}
         app={application}
@@ -219,13 +230,6 @@ export default async function ApplicationDetailPage({
         applicationId={application.id}
         vendors={vendors}
         current={currentVendor}
-      />
-
-      <PortalLinkEditor
-        applicationId={application.id}
-        initialNo={application.portal_application_no}
-        matched={portal.matched}
-        candidates={portal.candidates}
       />
 
       <AdminMemoEditor

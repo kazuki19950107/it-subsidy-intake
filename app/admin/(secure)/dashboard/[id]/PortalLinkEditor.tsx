@@ -57,12 +57,16 @@ export function PortalLinkEditor({
   };
 
   return (
-    <div className="space-y-2 p-3 rounded border border-rule bg-white">
+    <div className={`space-y-2 p-3 rounded border bg-white ${matched ? 'border-rule' : 'border-warn'}`}>
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-charcoal flex items-center gap-1">
           <Landmark className="w-3.5 h-3.5" />
           ポータル連携
-          <span className="ml-1 text-mute font-normal">（交付申請番号で突合）</span>
+          <span className="ml-1 text-mute font-normal">
+            {matched
+              ? '（紐付け済み・状態は毎朝自動で更新）'
+              : '（未連携: 交付申請番号を入れるか、下の候補を押すと紐付きます）'}
+          </span>
         </div>
         <a
           href={PORTAL_LIST_URL}
@@ -125,8 +129,13 @@ export function PortalLinkEditor({
           </ul>
         </div>
       )}
+      {!matched && !value && candidates.length === 0 && (
+        <div className="text-xs text-mute">
+          名前が似ているポータル案件は見つかりませんでした。ポータル案件の一覧で申請者名を探し、交付申請番号を入れてください。
+        </div>
+      )}
       <p className="text-[11px] text-mute">
-        番号を保存すると、毎朝の自動同期でポータル上のステータスが申請一覧に表示されます。
+        番号を保存するとすぐに、取り込み済みのポータルの状態がこの案件に入ります（段階も連動して進みます）。以後は毎朝自動で更新されます。
         <Link href="/admin/portal" className="text-teal hover:underline ml-1">
           ポータル案件一覧へ
         </Link>
