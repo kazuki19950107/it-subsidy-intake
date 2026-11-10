@@ -29,7 +29,7 @@ export function AdminNav() {
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const className =
-            'px-2 py-1.5 rounded hover:bg-teal-light flex items-center gap-1 whitespace-nowrap';
+            'px-2.5 py-1.5 rounded-lg text-charcoal hover:bg-teal-light hover:text-teal-dark flex items-center gap-1 whitespace-nowrap transition-colors';
           return item.external ? (
             <a key={item.href} href={item.href} className={className}>
               <Icon className="w-4 h-4" />

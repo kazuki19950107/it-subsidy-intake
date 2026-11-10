@@ -169,7 +169,7 @@ export default async function GuidePage() {
       </div>
 
       {/* ───────── 全体の流れ ───────── */}
-      <Section id="flow" title="全体の流れ" lead="社内が手を動かすのは黒、顧客は白、自動は緑のところです。">
+      <Section id="flow" title="全体の流れ" lead="社内が手を動かすのは黒、顧客は白、自動は青のところです。">
         <div className="flex flex-wrap gap-2 text-xs">
           <WhoBadge who="staff" />
           <WhoBadge who="customer" />
