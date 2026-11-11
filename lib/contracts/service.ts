@@ -6,7 +6,18 @@ import type { Application, Contract, Tool } from '@/lib/supabase/types';
 import { sha256 } from '@/lib/utils/hash';
 import { BILLING_TIMING_LABELS } from '@/lib/cases/constants';
 import { addHistory, reachMilestone } from '@/lib/cases/service';
-import { CONTRACT_TEMPLATE, CONTRACT_TITLE, TEMPLATE_VERSION, renderContractHtml, warekiDate, alignConsentHtml, type ContractVars } from './template';
+import {
+  CONTRACT_TEMPLATE,
+  CONTRACT_TITLE,
+  TEMPLATE_VERSION,
+  alignConsentHtml,
+  fillConsentParty,
+  readConsentParty,
+  renderContractHtml,
+  warekiDate,
+  type ConsentParty,
+  type ContractVars,
+} from './template';
 import { contractPdfHtml, renderPdf } from './pdf';
 import { noTimestamp, type TimestampProvider } from './timestamp';
 
@@ -124,6 +135,8 @@ export type SignInput = {
   signatureImage: string | null;
   ip: string | null;
   userAgent: string | null;
+  /** 同意書の「住所・名称・代表者」（お客様が署名のときに入れる） */
+  party?: ConsentParty | null;
 };
 
 /**
@@ -141,8 +154,21 @@ export async function signContract(
   const supabase = createServiceRoleClient();
   const signedAt = new Date().toISOString();
 
+  // 同意書の「住所・名称・代表者」は、お客様が入れた値で本文を書き換えてから PDF にする
+  const isConsent = (contract.kind ?? 'consent') === 'consent';
+  const needsParty = isConsent && !!readConsentParty(contract.body_html);
+  let bodyHtml = contract.body_html;
+  if (needsParty) {
+    const p = input.party;
+    if (!p || !p.address.trim() || !p.company_name.trim() || !p.representative_name.trim()) {
+      throw new Error('住所・名称・代表者を入力してください');
+    }
+    bodyHtml = fillConsentParty(contract.body_html, p);
+  }
+
   const signed: Contract = {
     ...contract,
+    body_html: bodyHtml,
     status: 'signed',
     signer_name: input.signerName,
     signer_title: input.signerTitle,
@@ -168,6 +194,7 @@ export async function signContract(
     .from('contracts')
     .update({
       status: 'signed',
+      body_html: bodyHtml,
       signer_name: signed.signer_name,
       signer_title: signed.signer_title,
       signer_email: signed.signer_email,
@@ -189,11 +216,30 @@ export async function signContract(
   if (error || !data) throw new Error(`締結の記録に失敗しました: ${error?.message ?? ''}`);
 
   await addHistory(contract.application_id, (contract.kind ?? 'consent') === 'consent' ? 'contract' : 'vendor_contract', contract.status, 'signed', { type: 'customer', name: input.signerName });
+  // お客様が入れた住所・名称・代表者で、案件の空欄を埋める（社内で入れた値は上書きしない）
+  if (needsParty && input.party) await fillCaseFromParty(contract.application_id, input.party, input.signerName);
   // 自社との同意書のときだけ「同意書の締結」の節目にする（ベンダーとの契約書では段階を動かさない）
   if ((contract.kind ?? 'consent') === 'consent') {
     await reachMilestone(contract.application_id, 'contract_signed', { type: 'customer', name: input.signerName }, signedAt);
   }
   return data as Contract;
+}
+
+async function fillCaseFromParty(applicationId: string, p: ConsentParty, signerName: string) {
+  const supabase = createServiceRoleClient();
+  const { data } = await supabase.from('applications').select('company_name, address, representative_name').eq('id', applicationId).maybeSingle();
+  if (!data) return;
+  const update: Record<string, string> = {};
+  const labels: Record<string, string> = { company_name: '会社名', address: '所在地', representative_name: '代表者' };
+  for (const k of ['company_name', 'address', 'representative_name'] as const) {
+    const now = (data[k] as string | null) ?? '';
+    if (!now.trim() && p[k].trim()) update[k] = p[k].trim();
+  }
+  if (Object.keys(update).length === 0) return;
+  await supabase.from('applications').update(update).eq('id', applicationId);
+  for (const [k, v] of Object.entries(update)) {
+    await addHistory(applicationId, labels[k], null, v, { type: 'customer', name: `${signerName}（同意書）` });
+  }
 }
 
 /** 締結済み PDF の期限付き URL（10 分） */

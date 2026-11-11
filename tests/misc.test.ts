@@ -106,3 +106,19 @@ describe('同意書（ひな形どおり）', () => {
     expect(html).not.toContain('（未入力）');
   });
 });
+
+import { fillConsentParty, readConsentParty } from '@/lib/contracts/template';
+describe('同意書の住所・名称・代表者をお客様が入れる', () => {
+  const html = alignConsentHtml(
+    renderContractHtml(CONTRACT_TEMPLATE, { issued_on_wareki: '令和8年11月12日', addressee: 'ベンダー', fiscal_year: '2026', company_name: '株式会社ライフ' }),
+  );
+  it('未入力は空として読む', () => {
+    expect(readConsentParty(html)).toEqual({ address: '', company_name: '株式会社ライフ', representative_name: '' });
+    expect(readConsentParty('<p>ほかの書類</p>')).toBeNull();
+  });
+  it('入れた値で置き換える（文字はエスケープ）', () => {
+    const out = fillConsentParty(html, { address: '東京都<港区>', company_name: '株式会社ライフ', representative_name: '山田 太郎' });
+    expect(out).toContain('住　所　東京都&lt;港区&gt;<br>名　称　株式会社ライフ<br>代表者　山田 太郎');
+    expect(readConsentParty(out)).toEqual({ address: '東京都<港区>', company_name: '株式会社ライフ', representative_name: '山田 太郎' });
+  });
+});

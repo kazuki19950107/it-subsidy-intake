@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { contractLabel, getContractByToken, markViewed } from '@/lib/contracts/service';
-import { SignForm } from './SignForm';
+import { readConsentParty } from '@/lib/contracts/template';
+import { SignSection } from './SignSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,10 +31,12 @@ export default async function ContractPage({ params }: { params: Promise<{ token
               <li>→</li>
               <li className={contract.status === 'signed' ? 'font-semibold text-ink' : ''}>3. 締結</li>
             </ol>
-            <article className="bg-white rounded-md border border-rule p-6 leading-relaxed text-sm text-charcoal">
-              <h1 className="text-lg font-bold text-ink text-center mb-6">{contract.title}</h1>
-              <div className="space-y-3 [&_p]:whitespace-normal" dangerouslySetInnerHTML={{ __html: contract.body_html }} />
-            </article>
+            {contract.status === 'signed' && (
+              <article className="bg-white rounded-md border border-rule p-6 leading-relaxed text-sm text-charcoal">
+                <h1 className="text-lg font-bold text-ink text-center mb-6">{contract.title}</h1>
+                <div className="space-y-3 [&_p]:whitespace-normal" dangerouslySetInnerHTML={{ __html: contract.body_html }} />
+              </article>
+            )}
             {contract.status === 'signed' ? (
               <div className="bg-white rounded-md border border-ok p-6 text-sm space-y-2">
                 <div className="font-bold text-ok">締結済みです</div>
@@ -46,7 +49,13 @@ export default async function ContractPage({ params }: { params: Promise<{ token
                 </a>
               </div>
             ) : (
-              <SignForm token={token} label={label} />
+              <SignSection
+                token={token}
+                label={label}
+                title={contract.title}
+                bodyHtml={contract.body_html}
+                initialParty={(contract.kind ?? 'consent') === 'consent' ? readConsentParty(contract.body_html) : null}
+              />
             )}
           </>
         )}

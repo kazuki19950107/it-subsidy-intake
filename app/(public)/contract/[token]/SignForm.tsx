@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import type { ConsentParty } from '@/lib/contracts/template';
 
 /** 手書きの署名欄（マウス・指どちらでも書ける） */
 function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
@@ -73,10 +74,29 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
   );
 }
 
-export function SignForm({ token, label = '同意書' }: { token: string; label?: string }) {
+export function SignForm({
+  token,
+  label = '同意書',
+  party = null,
+  onPartyChange,
+}: {
+  token: string;
+  label?: string;
+  /** 同意書の「住所・名称・代表者」（あるときだけ入力欄を出す） */
+  party?: ConsentParty | null;
+  onPartyChange?: (p: ConsentParty) => void;
+}) {
   const router = useRouter();
   const [method, setMethod] = useState<'typed' | 'drawn'>('typed');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(party?.representative_name ?? '');
+  const [nameTouched, setNameTouched] = useState(false);
+  const setParty = (patch: Partial<ConsentParty>) => {
+    if (!party || !onPartyChange) return;
+    const next = { ...party, ...patch };
+    onPartyChange(next);
+    // 氏名は、手で直していなければ代表者と同じにしておく
+    if (patch.representative_name !== undefined && !nameTouched) setName(patch.representative_name);
+  };
   const [title, setTitle] = useState('');
   const [email, setEmail] = useState('');
   const [image, setImage] = useState<string | null>(null);
@@ -99,6 +119,7 @@ export function SignForm({ token, label = '同意書' }: { token: string; label?
           method,
           signature_image: method === 'drawn' ? image : null,
           agreed,
+          party,
         }),
       });
       const b = await res.json().catch(() => ({}));
@@ -111,7 +132,8 @@ export function SignForm({ token, label = '同意書' }: { token: string; label?
     }
   };
 
-  const canSubmit = agreed && name.trim() !== '' && (method === 'typed' || !!image) && !busy;
+  const partyOk = !party || (party.address.trim() !== '' && party.company_name.trim() !== '' && party.representative_name.trim() !== '');
+  const canSubmit = agreed && partyOk && name.trim() !== '' && (method === 'typed' || !!image) && !busy;
 
   return (
     <form onSubmit={submit} className="bg-white rounded-md border border-rule p-6 space-y-4">
@@ -121,10 +143,40 @@ export function SignForm({ token, label = '同意書' }: { token: string; label?
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      {party && (
+        <div className="space-y-3 rounded-md border border-teal/40 bg-teal-light/30 p-4">
+          <div className="text-sm font-semibold text-ink">
+            {label}に載せる会社の情報（必須）
+            <span className="block text-xs font-normal text-mute">入力すると、上の{label}の「住所・名称・代表者」に入ります。</span>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="party_address">住所</Label>
+            <Input id="party_address" value={party.address} onChange={(e) => setParty({ address: e.target.value })} autoComplete="street-address" placeholder="例: 東京都千代田区丸の内1-1-1" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="party_company">名称（会社名・屋号）</Label>
+              <Input id="party_company" value={party.company_name} onChange={(e) => setParty({ company_name: e.target.value })} autoComplete="organization" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="party_rep">代表者</Label>
+              <Input id="party_rep" value={party.representative_name} onChange={(e) => setParty({ representative_name: e.target.value })} placeholder="例: 山田 太郎" />
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
-          <Label htmlFor="signer_name">氏名（必須）</Label>
-          <Input id="signer_name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          <Label htmlFor="signer_name">署名する人の氏名（必須）</Label>
+          <Input
+            id="signer_name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameTouched(true);
+            }}
+            autoComplete="name"
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="signer_title">役職</Label>

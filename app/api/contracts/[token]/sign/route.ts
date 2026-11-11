@@ -14,6 +14,14 @@ const schema = z
     method: z.enum(['typed', 'drawn']),
     signature_image: z.string().max(400_000).optional().nullable(),
     agreed: z.literal(true, { errorMap: () => ({ message: '内容への同意が必要です' }) }),
+    party: z
+      .object({
+        address: z.string().trim().max(300),
+        company_name: z.string().trim().max(200),
+        representative_name: z.string().trim().max(100),
+      })
+      .optional()
+      .nullable(),
   })
   .refine((v) => v.method !== 'drawn' || (v.signature_image ?? '').startsWith('data:image/png;base64,'), {
     message: '手書きの署名を書いてください',
@@ -36,6 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       signatureImage: b.method === 'drawn' ? (b.signature_image ?? null) : null,
       ip,
       userAgent: req.headers.get('user-agent'),
+      party: b.party ?? null,
     });
     await auditLog({
       actorType: 'applicant',

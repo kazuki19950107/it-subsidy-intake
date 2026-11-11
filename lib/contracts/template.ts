@@ -76,6 +76,39 @@ export function alignConsentHtml(html: string): string {
     .replace('<p>以上</p>', '<p style="text-align:right">以上</p>');
 }
 
+export type ConsentParty = { address: string; company_name: string; representative_name: string };
+
+const PARTY_LINES: Array<[keyof ConsentParty, string]> = [
+  ['address', '住　所　'],
+  ['company_name', '名　称　'],
+  ['representative_name', '代表者　'],
+];
+
+function unescapeHtml(s: string): string {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
+/** 同意書の本文から、署名する会社の「住所・名称・代表者」を読む（未入力は空） */
+export function readConsentParty(html: string): ConsentParty | null {
+  const out: Partial<ConsentParty> = {};
+  for (const [k, label] of PARTY_LINES) {
+    const m = html.match(new RegExp(`${label}([^<]*)`));
+    if (!m) return null;
+    const v = unescapeHtml(m[1]).trim();
+    out[k] = v === '（未入力）' ? '' : v;
+  }
+  return out as ConsentParty;
+}
+
+/** 同意書の本文の「住所・名称・代表者」を、お客様が入れた値に置き換える */
+export function fillConsentParty(html: string, p: ConsentParty): string {
+  let s = html;
+  for (const [k, label] of PARTY_LINES) {
+    s = s.replace(new RegExp(`${label}[^<]*`), `${label}${escapeHtml(p[k].trim()) || '（未入力）'}`);
+  }
+  return s;
+}
+
 /** 令和の日付（例: 令和8年5月11日）。日本時間で数える */
 export function warekiDate(d: Date): string {
   const j = new Date(d.getTime() + 9 * 3600_000);
