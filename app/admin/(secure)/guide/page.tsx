@@ -645,7 +645,7 @@ export default async function GuidePage() {
         <div className="grid gap-2 sm:grid-cols-2">
           {[
             { time: '朝', what: '社内用グループの「ポータル同期」の通知で、状態が変わった案件を確認', href: '/admin/portal', link: 'ポータル案件' },
-            { time: '朝', what: '「次の期限」の見出しを押して近い順に並べ、期限切れ（赤字）のチェック項目を片付ける', href: '/admin/dashboard?sort=due', link: '案件一覧（期限順）' },
+            { time: '朝', what: '「次にやること」の下に赤く出る「期限切れ」の案件から片付ける（リンクから開くと期限が近い順に並びます）', href: '/admin/dashboard?sort=due', link: '案件一覧（期限順）' },
             { time: '随時', what: 'トークで未読（緑の丸）のグループを開き、お客様の質問や送られた書類を確認する', href: '/admin/talk', link: 'トーク' },
             { time: '随時', what: '書類提出の通知が来たら、担当者確認が必要な書類と照合結果を見る', href: '/admin/dashboard?status=submitted', link: '送信済みの案件' },
             { time: '週1回', what: '「未紐付け」のグループと「送れなかった通知」がないか確認', href: '/admin/line', link: 'LINE' },

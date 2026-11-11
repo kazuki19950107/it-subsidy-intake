@@ -28,7 +28,7 @@ export type AdminPage = {
 };
 
 export const ADMIN_PAGES: AdminPage[] = [
-  { href: '/admin/dashboard', label: '案件一覧', icon: FileText, nav: true, description: '全案件の段階・ポータル状態・次の期限を一覧。絞り込みと並べ替え' },
+  { href: '/admin/dashboard', label: '案件一覧', icon: FileText, nav: true, description: '全案件の段階・次にやること・ポータル状態を一覧。行を押すと案件の詳細。絞り込みと並べ替え' },
   { href: '/admin/dashboard/new', label: '新規登録', icon: Plus, nav: true, description: '案件を登録し、申請URLと同意書の署名URLを発行' },
   { href: '/admin/portal', label: 'ポータル案件', icon: Landmark, nav: true, description: 'ポータルから取り込んだ案件と、手動の同期' },
   { href: '/admin/billing', label: '売上・請求', icon: JapaneseYen, nav: true, description: '請求予定・請求書（PDF）の作成・入金日の記録と、売上見込みの集計' },

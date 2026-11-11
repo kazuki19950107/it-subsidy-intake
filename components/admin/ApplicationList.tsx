@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Building2, StickyNote } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -59,6 +60,20 @@ function DueLabel({ due }: { due?: string | null }) {
       {due.slice(5).replace('-', '/')}
       {overdue ? ' 期限切れ' : ''}
     </span>
+  );
+}
+
+/** 「次にやること」の下に出す期限（期限切れは赤、7日以内は灰色。それより先は出さない） */
+function DueHint({ due }: { due?: string | null }) {
+  if (!due) return null;
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const soon = new Date(Date.now() + 9 * 3600_000 + 7 * 86400_000).toISOString().slice(0, 10);
+  if (due > soon) return null;
+  const md = due.slice(5).replace('-', '/');
+  return due < today ? (
+    <div className="text-[11px] text-accent font-semibold whitespace-nowrap">期限切れ {md}</div>
+  ) : (
+    <div className="text-[11px] text-mute whitespace-nowrap">期限 {md}</div>
   );
 }
 
@@ -129,6 +144,7 @@ export function ApplicationList({
   emptyMessage?: string;
   urlSort?: string | null;
 }) {
+  const router = useRouter();
   const { sorted: applications, sort, toggle, setSort } = useTableSort('cases', rows, COLUMNS, { firstDir: FIRST_DIR });
   useEffect(() => {
     if (urlSort && URL_SORTS[urlSort]) setSort(URL_SORTS[urlSort]);
@@ -159,27 +175,39 @@ export function ApplicationList({
               </TableHead>
               <TableHead>{head('staff', '担当')}</TableHead>
               <TableHead>{head('portal', 'ポータル')}</TableHead>
-              <TableHead>{head('due', '次の期限')}</TableHead>
               <TableHead className="w-[150px]">{head('form', 'フォーム')}</TableHead>
               <TableHead>{head('updated', '更新')}</TableHead>
-              <TableHead className="w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {applications.map((a) => {
               const status = STATUS_LABEL[a.status] ?? { label: a.status, variant: 'muted' as const };
               return (
-                <TableRow key={a.id}>
+                <TableRow
+                  key={a.id}
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    // 行のどこを押しても案件の詳細へ（Ctrl/⌘ や中ボタンなら新しいタブ）
+                    if ((e.target as HTMLElement).closest('a,button')) return;
+                    const url = `/admin/dashboard/${a.id}`;
+                    if (e.metaKey || e.ctrlKey) window.open(url, '_blank');
+                    else router.push(url);
+                  }}
+                  onAuxClick={(e) => {
+                    if (e.button === 1) window.open(`/admin/dashboard/${a.id}`, '_blank');
+                  }}
+                >
                   <TableCell>
                     <StageBadge stage={a._stage} />
                   </TableCell>
                   <TableCell>
                     <NextLabel next={a._next} />
+                    <DueHint due={a._nextDue} />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-ink">
+                    <Link href={`/admin/dashboard/${a.id}`} className="font-medium text-ink hover:underline">
                       {a.company_name || a.applicant_name || '（未入力）'}
-                    </div>
+                    </Link>
                     {((a.company_name && a.applicant_name) || a.admin_memo) && (
                       <div className="text-[11px] text-mute max-w-[280px] truncate flex items-center gap-1.5">
                         {a.company_name && a.applicant_name && <span>{a.applicant_name}</span>}
@@ -219,10 +247,6 @@ export function ApplicationList({
                     )}
                   </TableCell>
                   <TableCell>
-                    <DueLabel due={a._nextDue} />
-                    {!!a._openChecks && <div className="text-[11px] text-mute">未完了 {a._openChecks}件</div>}
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center gap-2 whitespace-nowrap" title={STEP_LABEL[a._step] ?? a._step}>
                       <Badge variant={status.variant}>{status.label}</Badge>
                       <ProgressBar percent={a._progress} size="sm" showPercent={false} className="w-14" />
@@ -230,11 +254,6 @@ export function ApplicationList({
                     </div>
                   </TableCell>
                   <TableCell className="text-[12px] text-mute whitespace-nowrap">{formatJpDate(a.updated_at)}</TableCell>
-                  <TableCell>
-                    <Link href={`/admin/dashboard/${a.id}`} className="text-[13px] text-mute hover:text-ink whitespace-nowrap">
-                      開く →
-                    </Link>
-                  </TableCell>
                 </TableRow>
               );
             })}
