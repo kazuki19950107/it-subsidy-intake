@@ -7,7 +7,7 @@ import { renderContractHtml, type ContractVars } from '@/lib/contracts/template'
 import { DEFAULT_INVOICE_SETTINGS, type InvoiceItem, type InvoiceSettings } from '@/lib/billing/invoice';
 import { InvoiceError, issueInvoice, previewPdf, type InvoiceInput, type InvoiceRecord, type Issuer } from '@/lib/billing/invoiceService';
 import { detailFromRaw } from '@/lib/portal/applyDetail';
-import type { PortalDetail } from '@/lib/portal/detail';
+import { partyFromBasicText, type PortalDetail } from '@/lib/portal/detail';
 import {
   VENDOR_CONTRACT_TEMPLATE,
   VENDOR_CONTRACT_TITLE,
@@ -74,7 +74,9 @@ export async function loadVendorCaseContext(applicationId: string): Promise<Vend
 
 /** お客様（甲）の会社名・住所・代表者。ポータルの申請内容を優先し、無ければ案件の情報 */
 export function clientParty(ctx: VendorCaseContext): { company_name: string | null; address: string | null; representative_name: string | null; postal: string | null } {
-  const d = ctx.detail;
+  // 記録した本文があれば、今の読み取り方で読み直したものを使う
+  const re = partyFromBasicText(ctx.detail?.basic_text);
+  const d = ctx.detail ? { ...ctx.detail, ...(re ? Object.fromEntries(Object.entries(re).filter(([, v]) => v)) : {}) } : null;
   const pick = (a: string | null | undefined, b: string | null | undefined) => (a && a.trim() ? a.trim() : b && b.trim() ? b.trim() : null);
   return {
     company_name: pick(d?.company_name, ctx.app.company_name || ctx.app.applicant_name),

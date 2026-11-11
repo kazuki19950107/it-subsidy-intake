@@ -33,6 +33,19 @@ export type PortalDetail = {
   fetched_at: string;
 };
 
+/** 代表者氏名。画面では姓と名が別の行のことがあるので、次の見出し（代表者氏名（フリガナ）など）の前までをつなげる */
+function representativeName(lines: string[]): string | null {
+  const i = lines.findIndex((l) => l === '代表者氏名');
+  if (i < 0) return null;
+  const parts: string[] = [];
+  for (let k = i + 1; k < lines.length && parts.length < 2; k++) {
+    const l = lines[k];
+    if (/^代表者|^従業員|^資本金|^設立|^業種|^電話|^メール|^申請|^基本情報|ITツール|（フリガナ）|[：:]/.test(l)) break;
+    parts.push(l);
+  }
+  return parts.length ? parts.join(' ') : null;
+}
+
 /** いくつかの見出しのうち、最初に見つかったものの値 */
 function firstValue(lines: string[], labels: string[]): string | null {
   for (const l of labels) {
@@ -110,7 +123,7 @@ export function parsePortalDetail(text: string, toolRows: string[][], fetchedAt 
   return {
     round: roundFromPortal(valueAfter(lines, '募集回')),
     corporate_number: normalizeCorporateNumber(valueAfter(lines, '法人番号')),
-    representative_name: valueAfter(lines, '代表者氏名'),
+    representative_name: representativeName(lines),
     tools,
     subsidy_requested: parseYen(valueAfter(lines, '補助金申請額合計')),
     eligible_cost: parseYen(valueAfter(lines, '補助対象経費合計（税抜き）')),
@@ -119,6 +132,13 @@ export function parsePortalDetail(text: string, toolRows: string[][], fetchedAt 
     basic_text: basicText(lines),
     fetched_at: fetchedAt,
   };
+}
+
+/** 記録した「基本情報」の本文から、申請者の会社名・住所・代表者を読み直す（読み取り方を直したときに、同期を待たずに効かせる） */
+export function partyFromBasicText(text: string | null | undefined) {
+  if (!text) return null;
+  const lines = text.split(String.fromCharCode(10)).map((l) => l.trim()).filter(Boolean);
+  return { ...parseApplicantParty(lines), representative_name: representativeName(lines) };
 }
 
 /** 「基本情報」から ITツールの前までの本文（無ければ先頭から） */
