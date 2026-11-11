@@ -125,6 +125,11 @@ export function fillConsentParty(html: string, p: ConsentParty): string {
   return s;
 }
 
+/** 同意書の冒頭の日付（右寄せの「令和…」）を差し替える。署名した日にするため */
+export function setConsentDate(html: string, wareki: string): string {
+  return html.replace(/^<p style="text-align:right">令和[^<]*<\/p>/, `<p style="text-align:right">${wareki}</p>`);
+}
+
 /** 令和の日付（例: 令和8年5月11日）。日本時間で数える */
 export function warekiDate(d: Date): string {
   const j = new Date(d.getTime() + 9 * 3600_000);

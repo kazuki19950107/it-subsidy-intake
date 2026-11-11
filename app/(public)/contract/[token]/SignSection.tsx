@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { fillConsentParty, type ConsentParty } from '@/lib/contracts/template';
+import { fillConsentParty, setConsentDate, warekiDate, type ConsentParty } from '@/lib/contracts/template';
 import { SignForm } from './SignForm';
 
 /** 未署名の書類: 本文と署名欄。同意書の「住所・名称・代表者」は入力した値をその場で本文に入れて見せる */
@@ -19,7 +19,9 @@ export function SignSection({
   initialParty: ConsentParty | null;
 }) {
   const [party, setParty] = useState<ConsentParty | null>(initialParty);
-  const html = party ? fillConsentParty(bodyHtml, party) : bodyHtml;
+  // 日付は署名する日（今日）で見せる。同意書以外は日付の行が無いので変わらない
+  const dated = setConsentDate(bodyHtml, warekiDate(new Date()));
+  const html = party ? fillConsentParty(dated, party) : dated;
   return (
     <>
       <article className="bg-white rounded-md border border-rule p-6 leading-relaxed text-sm text-charcoal">

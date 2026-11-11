@@ -122,3 +122,12 @@ describe('同意書の住所・名称・代表者をお客様が入れる', () =
     expect(readConsentParty(out)).toEqual({ address: '東京都<港区>', company_name: '株式会社ライフ', representative_name: '山田 太郎' });
   });
 });
+
+import { setConsentDate } from '@/lib/contracts/template';
+describe('同意書の日付を署名した日にする', () => {
+  it('冒頭の令和の日付だけを差し替える', () => {
+    const html = '<p style="text-align:right">令和8年11月1日</p>\n<p>本文 令和8年</p>';
+    expect(setConsentDate(html, '令和8年11月12日')).toBe('<p style="text-align:right">令和8年11月12日</p>\n<p>本文 令和8年</p>');
+    expect(setConsentDate('<p>甲：A社</p>', '令和8年11月12日')).toBe('<p>甲：A社</p>');
+  });
+});

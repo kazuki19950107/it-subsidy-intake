@@ -12,6 +12,7 @@ import {
   TEMPLATE_VERSION,
   alignConsentHtml,
   fillConsentParty,
+  setConsentDate,
   readConsentParty,
   renderContractHtml,
   warekiDate,
@@ -164,6 +165,8 @@ export async function signContract(
     }
     bodyHtml = fillConsentParty(contract.body_html, p);
   }
+  // 同意書の冒頭の日付は、署名した日にする
+  if ((contract.kind ?? 'consent') === 'consent') bodyHtml = setConsentDate(bodyHtml, warekiDate(new Date(signedAt)));
 
   const signed: Contract = {
     ...contract,
