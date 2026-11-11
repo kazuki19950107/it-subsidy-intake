@@ -38,9 +38,12 @@ export async function autoLinkGroup(group: LineGroup): Promise<LineGroup> {
 export async function registerGroup(groupId: string): Promise<LineGroup> {
   const supabase = createServiceRoleClient();
   let name: string | null = null;
+  let picture: string | null = null;
   if (lineConfigured()) {
     try {
-      name = (await getGroupSummary(groupId)).groupName;
+      const summary = await getGroupSummary(groupId);
+      name = summary.groupName;
+      picture = summary.pictureUrl ?? null;
     } catch {
       name = null;
     }
@@ -51,7 +54,12 @@ export async function registerGroup(groupId: string): Promise<LineGroup> {
   if (existing) {
     const { data } = await supabase
       .from('line_groups')
-      .update({ active: true, group_name: name ?? existing.group_name, name_fetched_at: name ? now : existing.name_fetched_at })
+      .update({
+        active: true,
+        group_name: name ?? existing.group_name,
+        name_fetched_at: name ? now : existing.name_fetched_at,
+        picture_url: picture ?? existing.picture_url ?? null,
+      })
       .eq('id', existing.id)
       .select()
       .single();
@@ -59,7 +67,7 @@ export async function registerGroup(groupId: string): Promise<LineGroup> {
   } else {
     const { data, error } = await supabase
       .from('line_groups')
-      .insert({ group_id: groupId, group_name: name, name_fetched_at: name ? now : null, kind: 'customer' })
+      .insert({ group_id: groupId, group_name: name, name_fetched_at: name ? now : null, kind: 'customer', picture_url: picture })
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -97,8 +105,11 @@ export async function refreshGroupNames(): Promise<{ checked: number; renamed: n
   const groups = (data ?? []) as LineGroup[];
   for (const g of groups) {
     try {
-      const { groupName } = await getGroupSummary(g.group_id);
+      const { groupName, pictureUrl } = await getGroupSummary(g.group_id);
       const now = new Date().toISOString();
+      if ((pictureUrl ?? null) !== (g.picture_url ?? null)) {
+        await supabase.from('line_groups').update({ picture_url: pictureUrl ?? null }).eq('id', g.id);
+      }
       if (groupName !== g.group_name) {
         renamed++;
         const { data: updated } = await supabase

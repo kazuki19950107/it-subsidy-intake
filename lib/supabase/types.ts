@@ -169,6 +169,31 @@ export interface LineGroup {
   name_fetched_at: string | null;
   joined_at: string;
   created_at: string;
+  last_message_at?: string | null;
+  last_message_preview?: string | null;
+  last_read_at?: string | null;
+  picture_url?: string | null;
+}
+
+export interface LineMessage {
+  id: string;
+  line_group_id: string;
+  direction: 'in' | 'out';
+  message_type: string;
+  text: string | null;
+  sticker_package_id: string | null;
+  sticker_id: string | null;
+  storage_path: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  line_message_id: string | null;
+  sender_user_id: string | null;
+  sender_name: string | null;
+  sender_picture_url: string | null;
+  sent_by: string | null;
+  sent_at: string;
+  unsent_at: string | null;
+  created_at: string;
 }
 
 export interface LineSendFailure {

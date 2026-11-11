@@ -1,6 +1,7 @@
 import 'server-only';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { LineApiError, lineConfigured, pushMessage } from './client';
+import { recordOutgoingText } from './messages';
 
 // 社内・顧客への通知。送れなかったものは line_send_failures に残して管理画面に出す。
 
@@ -30,6 +31,7 @@ export async function sendToLine(toId: string | null, purpose: string, text: str
   }
   try {
     await pushMessage(toId, [text]);
+    await recordOutgoingText(toId, text, 'システム（通知）').catch(() => {});
     return { ok: true };
   } catch (e) {
     const reason = reasonOf(e);
@@ -87,6 +89,7 @@ export async function resendFailure(id: string): Promise<SendResult> {
   if (!to || !lineConfigured()) return { ok: false, reason: to ? 'LINE が未設定です' : '送り先がありません' };
   try {
     await pushMessage(to, [data.body as string]);
+    await recordOutgoingText(to, data.body as string, 'システム（通知）').catch(() => {});
     await supabase.from('line_send_failures').update({ resent_at: new Date().toISOString(), to_id: to }).eq('id', id);
     return { ok: true };
   } catch (e) {

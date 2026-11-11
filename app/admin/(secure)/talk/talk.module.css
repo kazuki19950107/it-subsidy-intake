@@ -1,0 +1,591 @@
+/* LINE のトーク画面に寄せた見た目（色は LINE アプリに合わせる） */
+
+.wrap {
+  display: flex;
+  height: calc(100dvh - 56px - 48px);
+  min-height: 420px;
+  background: #fff;
+  border: 1px solid #e6e8eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ---- 左: トーク一覧 ---- */
+.threads {
+  width: 340px;
+  flex: 0 0 340px;
+  border-right: 1px solid #e6e8eb;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.threadsHead {
+  padding: 12px 12px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.threadsTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1f2328;
+}
+.totalBadge {
+  min-width: 18px;
+  line-height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  border-radius: 9px;
+  background: #ff334b;
+  color: #fff;
+  text-align: center;
+}
+.search {
+  padding: 4px 12px 10px;
+  border-bottom: 1px solid #f0f1f3;
+}
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f2f3f5;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #8b9096;
+}
+.searchBox input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: #1f2328;
+  min-width: 0;
+}
+.filters {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+.chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #e0e2e5;
+  color: #5f6368;
+  background: #fff;
+  cursor: pointer;
+}
+.chipOn {
+  border-color: #06c755;
+  color: #06c755;
+  background: #f2fbf4;
+  font-weight: 600;
+}
+.threadList {
+  flex: 1;
+  overflow-y: auto;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 0;
+}
+.row:hover {
+  background: #f7f8fa;
+}
+.rowActive,
+.rowActive:hover {
+  background: #eef1f6;
+}
+.avatar {
+  border-radius: 50%;
+  background: #d5dbe3;
+  object-fit: cover;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  overflow: hidden;
+}
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+.rowTop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rowName {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2328;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 16px;
+  background: #eceef1;
+  color: #6b7075;
+}
+.tagWarn {
+  background: #fff3e0;
+  color: #b26a00;
+}
+.rowTime {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: #9aa0a6;
+}
+.rowBottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.rowPreview {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #8b9096;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unread {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #06c755;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.empty {
+  padding: 28px 12px;
+  font-size: 13px;
+  color: #9aa0a6;
+  text-align: center;
+}
+
+/* ---- 右: トーク ---- */
+.talk {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #8cabd8;
+  position: relative;
+}
+.talkHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e6e8eb;
+}
+.talkName {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2328;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.talkSub {
+  font-size: 11px;
+  color: #9aa0a6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caseLink {
+  color: #06c755;
+}
+.caseLink:hover {
+  text-decoration: underline;
+}
+.warn {
+  color: #e08600;
+}
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  flex: none;
+}
+.iconBtn:hover {
+  background: #f2f3f5;
+}
+.iconBtn:disabled {
+  color: #c9ced4;
+  cursor: default;
+  background: transparent;
+}
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 16px;
+}
+.bodyDrag {
+  outline: 2px dashed #06c755;
+  outline-offset: -8px;
+  background: #a8c3e6;
+}
+.placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 13px;
+}
+.loadOlder {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 10px;
+}
+.loadOlder button {
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.18);
+  border: 0;
+  border-radius: 12px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.dateSep {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+}
+.dateSep span {
+  padding: 2px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  color: #fff;
+  font-size: 11px;
+}
+.msgRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.msgRowFirst {
+  margin-top: 10px;
+}
+.msgRowOut {
+  flex-direction: row-reverse;
+}
+.msgAvatar {
+  flex: 0 0 34px;
+  align-self: flex-start;
+}
+.msgCol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: min(68%, 520px);
+}
+.msgRowOut .msgCol {
+  align-items: flex-end;
+}
+.sender {
+  font-size: 11px;
+  color: #33415c;
+  margin: 0 0 3px 2px;
+}
+.bubble {
+  position: relative;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2328;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 18px;
+}
+.bubble a {
+  color: #1a5fb4;
+  text-decoration: underline;
+}
+.bubbleIn {
+  background: #fff;
+}
+.bubbleOut {
+  background: #8de055;
+}
+/* 吹き出しのしっぽ（続けて送ったものの最初だけ） */
+.tailIn::before,
+.tailOut::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 14px;
+}
+.tailIn::before {
+  left: -6px;
+  background: radial-gradient(circle at 0 100%, transparent 11px, #fff 12px);
+}
+.tailOut::before {
+  right: -6px;
+  background: radial-gradient(circle at 100% 100%, transparent 11px, #8de055 12px);
+}
+.media {
+  display: block;
+  max-width: min(100%, 280px);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: zoom-in;
+  background: rgba(255, 255, 255, 0.4);
+}
+.media img {
+  width: 100%;
+  display: block;
+}
+.sticker {
+  width: 120px;
+  height: auto;
+  display: block;
+}
+.unsent {
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 12px;
+  padding: 3px 12px;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+  text-decoration: none !important;
+  color: #1f2328 !important;
+}
+.fileIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #eef1f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+  flex: none;
+}
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 2px;
+  font-size: 10px;
+  color: #33415c;
+  white-space: nowrap;
+  flex: none;
+}
+.msgRowOut .meta {
+  align-items: flex-end;
+}
+.failed {
+  color: #d93025;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.failed button {
+  color: #d93025;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: 10px;
+}
+.newPill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 120px;
+  background: #fff;
+  color: #06c755;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 6px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  border: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* ---- 入力欄 ---- */
+.pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  border-top: 1px solid #e6e8eb;
+}
+.pending img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.foot {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border-top: 1px solid #e6e8eb;
+}
+.input {
+  flex: 1;
+  min-height: 40px;
+  max-height: 140px;
+  padding: 9px 14px;
+  border: 1px solid #e0e2e5;
+  border-radius: 20px;
+  background: #f7f8fa;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  color: #1f2328;
+}
+.input:focus {
+  border-color: #06c755;
+  background: #fff;
+}
+.send {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #06c755;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  cursor: pointer;
+  flex: none;
+  margin-bottom: 1px;
+}
+.send:disabled {
+  background: #c9ced4;
+  cursor: default;
+}
+.footNote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px 8px;
+  background: #fff;
+  font-size: 11px;
+  color: #9aa0a6;
+}
+.footNote select {
+  font-size: 11px;
+  border: 1px solid #e0e2e5;
+  border-radius: 6px;
+  padding: 1px 4px;
+  color: #3a4149;
+  background: #fff;
+}
+.error {
+  margin: 0 12px 8px;
+  font-size: 12px;
+  color: #d93025;
+}
+
+/* 画像の拡大 */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  cursor: zoom-out;
+}
+.lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  object-fit: contain;
+}
+.lightboxBar {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+.lightboxBar a,
+.lightboxBar button {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* スマホ: 一覧とトークを切り替える */
+.back {
+  display: none;
+}
+@media (max-width: 960px) {
+  .wrap {
+    height: calc(100dvh - 56px - 48px);
+  }
+  .threads {
+    width: 100%;
+    flex: 1 1 auto;
+    border-right: 0;
+  }
+  .hideMobile {
+    display: none !important;
+  }
+  .back {
+    display: flex;
+  }
+  .msgCol {
+    max-width: 78%;
+  }
+}

@@ -73,10 +73,39 @@ export async function pushMessage(to: string, texts: string[]): Promise<void> {
   });
 }
 
-/** グループ名を取得する */
-export async function getGroupSummary(groupId: string): Promise<{ groupId: string; groupName: string }> {
+/** グループ名（とアイコン）を取得する */
+export async function getGroupSummary(groupId: string): Promise<{ groupId: string; groupName: string; pictureUrl?: string }> {
   const res = await call(`/group/${encodeURIComponent(groupId)}/summary`);
-  return (await res.json()) as { groupId: string; groupName: string };
+  return (await res.json()) as { groupId: string; groupName: string; pictureUrl?: string };
+}
+
+/** 任意のメッセージ（画像など）をプッシュ送信する（通数を使う） */
+export async function pushMessages(to: string, messages: Array<Record<string, unknown>>): Promise<void> {
+  await call('/message/push', { method: 'POST', body: JSON.stringify({ to, messages: messages.slice(0, 5) }) });
+}
+
+/** グループのメンバーの名前とアイコン（通数は使わない） */
+export async function getGroupMemberProfile(
+  groupId: string,
+  userId: string,
+): Promise<{ displayName: string; pictureUrl?: string } | null> {
+  try {
+    const res = await call(`/group/${encodeURIComponent(groupId)}/member/${encodeURIComponent(userId)}`);
+    return (await res.json()) as { displayName: string; pictureUrl?: string };
+  } catch {
+    return null;
+  }
+}
+
+/** 届いた画像・ファイルの中身を取る（LINE 側はしばらくすると消えるので、すぐ保存する） */
+export async function getMessageContent(messageId: string): Promise<{ data: ArrayBuffer; contentType: string } | null> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) return null;
+  const res = await fetch(`https://api-data.line.me/v2/bot/message/${encodeURIComponent(messageId)}/content`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return { data: await res.arrayBuffer(), contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
 }
 
 /** 今月の送信数と上限 */
