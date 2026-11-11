@@ -1,18 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { Building2, StickyNote } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import type { Application } from '@/lib/supabase/types';
 import { formatJpDate } from '@/lib/utils/dateCheck';
+import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
+import { SortButton } from '@/components/ui/SortableHead';
+import type { SortDir, SortState } from '@/lib/utils/sortRows';
 
 export type ApplicationWithProgress = Application & {
   _progress: number;
   _step: string;
   _vendorName?: string | null;
-  _stage?: { name: string; color: string } | null;
+  _stage?: { name: string; color: string; order?: number } | null;
   _toolCode?: string | null;
   _staffName?: string | null;
   _nextDue?: string | null;
@@ -67,13 +71,51 @@ const STEP_LABEL: Record<string, string> = {
   complete: '完了',
 };
 
+const COLUMNS: SortColumns<ApplicationWithProgress> = {
+  stage: (a) => a._stage?.order ?? null,
+  company: (a) => a.company_name || a.applicant_name || null,
+  round: (a) => (a.round != null ? a.round * 1000 : null),
+  tool: (a) => a._toolCode ?? null,
+  staff: (a) => a._staffName ?? null,
+  portal: (a) => a.portal_status ?? null,
+  due: (a) => a._nextDue ?? null,
+  form: (a) => a._progress,
+  updated: (a) => a.updated_at,
+};
+const COLUMN_LABELS: Record<string, string> = {
+  stage: '段階',
+  company: '会社名',
+  round: '回次',
+  tool: 'ツール',
+  staff: '担当',
+  portal: 'ポータル',
+  due: '次の期限',
+  form: 'フォームの進み具合',
+  updated: '更新日',
+};
+const FIRST_DIR: Partial<Record<string, SortDir>> = { round: 'desc', form: 'desc', updated: 'desc' };
+/** ?sort= で開いたときの並び（使い方ページのリンクなど） */
+const URL_SORTS: Record<string, SortState> = {
+  due: { key: 'due', dir: 'asc' },
+  round: { key: 'round', dir: 'desc' },
+  stage: { key: 'stage', dir: 'asc' },
+};
+
 export function ApplicationList({
-  applications,
+  applications: rows,
   emptyMessage,
+  urlSort,
 }: {
   applications: ApplicationWithProgress[];
   emptyMessage?: string;
+  urlSort?: string | null;
 }) {
+  const { sorted: applications, sort, toggle, setSort } = useTableSort('cases', rows, COLUMNS, { firstDir: FIRST_DIR });
+  useEffect(() => {
+    if (urlSort && URL_SORTS[urlSort]) setSort(URL_SORTS[urlSort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSort]);
+  const head = (key: string, label: string) => <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} />;
   if (applications.length === 0) {
     return (
       <div className="text-center py-16 text-mute">
@@ -88,14 +130,18 @@ export function ApplicationList({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>段階</TableHead>
-              <TableHead>会社・申請者</TableHead>
-              <TableHead>回次・ツール</TableHead>
-              <TableHead>担当</TableHead>
-              <TableHead>ポータル</TableHead>
-              <TableHead>次の期限</TableHead>
-              <TableHead className="w-[150px]">フォーム</TableHead>
-              <TableHead>更新</TableHead>
+              <TableHead>{head('stage', '段階')}</TableHead>
+              <TableHead>{head('company', '会社・申請者')}</TableHead>
+              <TableHead>
+                {head('round', '回次')}
+                <span className="mx-1 text-rule">・</span>
+                {head('tool', 'ツール')}
+              </TableHead>
+              <TableHead>{head('staff', '担当')}</TableHead>
+              <TableHead>{head('portal', 'ポータル')}</TableHead>
+              <TableHead>{head('due', '次の期限')}</TableHead>
+              <TableHead className="w-[150px]">{head('form', 'フォーム')}</TableHead>
+              <TableHead>{head('updated', '更新')}</TableHead>
               <TableHead className="w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -173,8 +219,28 @@ export function ApplicationList({
         </Table>
       </div>
 
-      {/* Mobile: カード */}
-      <ul className="md:hidden space-y-3">
+      {/* Mobile: カード（並べ替えは選ぶ欄で） */}
+      <div className="md:hidden flex items-center gap-2 p-3 pb-0 text-xs text-mute">
+        並べ替え
+        <select
+          className="h-8 rounded-md border border-rule bg-white px-2 text-xs text-ink"
+          value={sort ? `${sort.key}:${sort.dir}` : ''}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(':');
+            setSort(key ? { key, dir: dir as SortDir } : null);
+          }}
+        >
+          <option value="">更新が新しい順</option>
+          {Object.keys(COLUMNS).flatMap((k) =>
+            (['asc', 'desc'] as const).map((d) => (
+              <option key={`${k}:${d}`} value={`${k}:${d}`}>
+                {COLUMN_LABELS[k]}（{d === 'asc' ? '小さい・古い順' : '大きい・新しい順'}）
+              </option>
+            )),
+          )}
+        </select>
+      </div>
+      <ul className="md:hidden space-y-3 p-3">
         {applications.map((a) => {
           const status = STATUS_LABEL[a.status] ?? { label: a.status, variant: 'muted' as const };
           return (

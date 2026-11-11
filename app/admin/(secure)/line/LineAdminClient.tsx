@@ -7,6 +7,8 @@ import { RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { LineGroup, LineSendFailure } from '@/lib/supabase/types';
+import { useTableSort } from '@/lib/hooks/useTableSort';
+import { SortButton } from '@/components/ui/SortableHead';
 
 function jst(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', dateStyle: 'short', timeStyle: 'short' }) : '-';
@@ -25,6 +27,13 @@ export function LineAdminClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const caseLabel = new Map(cases.map((c) => [c.id, c.label]));
+  const { sorted: sortedGroups, sort, toggle } = useTableSort('lineGroups', groups, {
+    name: (g) => g.group_name,
+    kind: (g) => g.kind,
+    case: (g) => (g.application_id ? (caseLabel.get(g.application_id) ?? null) : null),
+    fetched: (g) => g.name_fetched_at,
+  }, { firstDir: { fetched: 'desc' } });
+  const head = (key: string, label: string) => <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} />;
 
   const call = async (key: string, url: string, method: string, body: unknown, okText: string) => {
     setBusy(key);
@@ -94,15 +103,15 @@ export function LineAdminClient({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-mute border-b border-rule">
-                  <th className="py-1 pr-2">グループ名</th>
-                  <th className="py-1 pr-2">種類</th>
-                  <th className="py-1 pr-2">案件</th>
-                  <th className="py-1 pr-2">名前の取得</th>
+                  <th className="py-1 pr-2">{head('name', 'グループ名')}</th>
+                  <th className="py-1 pr-2">{head('kind', '種類')}</th>
+                  <th className="py-1 pr-2">{head('case', '案件')}</th>
+                  <th className="py-1 pr-2">{head('fetched', '名前の取得')}</th>
                   <th className="py-1"></th>
                 </tr>
               </thead>
               <tbody>
-                {groups.map((g) => {
+                {sortedGroups.map((g) => {
                   const candidates = (g.candidate_application_ids ?? []).filter((id) => caseLabel.has(id));
                   return (
                     <tr key={g.id} className="border-b border-rule/50 align-top">

@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
+import { SortButton } from '@/components/ui/SortableHead';
 import { Building2, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { PortalPasswordReveal } from '@/components/admin/PortalPasswordReveal';
 import { PortalSyncButton } from '@/components/admin/PortalSyncButton';
@@ -66,6 +68,14 @@ function toForm(v: VendorWithCount): FormState {
   };
 }
 
+const COLUMNS: SortColumns<VendorWithCount> = {
+  name: (v) => v.name,
+  person: (v) => v.contact_person,
+  contact: (v) => v.email || v.phone || null,
+  count: (v) => v.application_count,
+  active: (v) => (v.active ? 0 : 1),
+};
+
 function matches(v: VendorWithCount, q: string): boolean {
   if (!q) return true;
   const needle = q.toLowerCase();
@@ -85,6 +95,10 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
   const filtered = useMemo(
     () => initialVendors.filter((v) => (showInactive || v.active) && matches(v, query)),
     [initialVendors, query, showInactive],
+  );
+  const { sorted, sort, toggle } = useTableSort('vendors', filtered, COLUMNS, { firstDir: { count: 'desc' } });
+  const head = (key: string, label: string, align?: 'right') => (
+    <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} align={align} />
   );
 
   const toggleActive = async (v: VendorWithCount) => {
@@ -180,16 +194,16 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ベンダー名</TableHead>
-                    <TableHead>担当者</TableHead>
-                    <TableHead>連絡先</TableHead>
-                    <TableHead className="text-right">利用案件</TableHead>
-                    <TableHead>状態</TableHead>
+                    <TableHead>{head('name', 'ベンダー名')}</TableHead>
+                    <TableHead>{head('person', '担当者')}</TableHead>
+                    <TableHead>{head('contact', '連絡先')}</TableHead>
+                    <TableHead className="text-right">{head('count', '利用案件', 'right')}</TableHead>
+                    <TableHead>{head('active', '状態')}</TableHead>
                     <TableHead className="w-[140px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((v) => (
+                  {sorted.map((v) => (
                     <TableRow key={v.id} className={v.active ? '' : 'opacity-60'}>
                       <TableCell>
                         <div className="font-medium">{v.name}</div>
@@ -250,7 +264,7 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
 
             {/* Mobile */}
             <ul className="md:hidden divide-y divide-rule/60">
-              {filtered.map((v) => (
+              {sorted.map((v) => (
                 <li key={v.id} className={`p-3 space-y-2 ${v.active ? '' : 'opacity-60'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">

@@ -57,7 +57,7 @@ export const ACTOR_LABELS: Record<ActorType, string> = {
   customer: '顧客',
 };
 
-/** 案件一覧の並べ替え（?sort=） */
+/** 案件一覧の並べ替え（?sort= で開いたときの初めの並び。ふだんは列見出しを押して並べ替える） */
 export const DASHBOARD_SORTS = ['updated', 'due', 'round', 'stage'] as const;
 export const DASHBOARD_SORT_LABELS: Record<(typeof DASHBOARD_SORTS)[number], string> = {
   updated: '更新が新しい順',

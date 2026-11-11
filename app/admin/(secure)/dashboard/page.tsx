@@ -131,7 +131,7 @@ export default async function DashboardPage({
       _progress: progress.percent,
       _step: progress.currentStep,
       _vendorName: r.vendor?.name ?? null,
-      _stage: r.stage ? { name: r.stage.name, color: r.stage.color } : null,
+      _stage: r.stage ? { name: r.stage.name, color: r.stage.color, order: r.stage.sort_order } : null,
       _toolCode: r.tool?.code ?? null,
       _staffName: r.staff?.name ?? null,
       _nextDue: nextDue(r),
@@ -139,14 +139,6 @@ export default async function DashboardPage({
     };
   });
 
-  if (sort === 'due') {
-    applications.sort((a, b) => (a._nextDue ?? '9999').localeCompare(b._nextDue ?? '9999'));
-  } else if (sort === 'round') {
-    applications.sort((a, b) => (b.round ?? -1) - (a.round ?? -1));
-  } else if (sort === 'stage') {
-    const order = new Map(stages.map((s) => [s.id, s.sort_order]));
-    applications.sort((a, b) => (order.get(a.stage_id ?? '') ?? 9999) - (order.get(b.stage_id ?? '') ?? 9999));
-  }
 
   const counts = {
     total: rows.length,
@@ -189,6 +181,7 @@ export default async function DashboardPage({
       <div className="bg-white rounded-md border border-rule">
         <ApplicationList
           applications={applications}
+          urlSort={sp.sort && sort !== 'updated' ? sort : null}
           emptyMessage={isFiltered ? '条件に一致する案件はありません。' : undefined}
         />
       </div>

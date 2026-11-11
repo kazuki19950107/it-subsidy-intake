@@ -6,6 +6,17 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import type { BillingSchedule } from '@/lib/supabase/types';
 import { BILLING_TIMING_LABELS, type BillingTiming } from '@/lib/cases/constants';
+import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
+import { SortButton } from '@/components/ui/SortableHead';
+
+const COLUMNS: SortColumns<BillingRow> = {
+  case: (r) => r.case_name,
+  occurred: (r) => r.occurred_on,
+  amount: (r) => r.amount,
+  issued: (r) => r.invoice_issued_on,
+  paid: (r) => r.paid_on,
+  memo: (r) => r.memo,
+};
 
 export type BillingRow = BillingSchedule & { case_name: string; tool_code: string | null; round: number | null };
 
@@ -95,7 +106,9 @@ function Row({ row }: { row: BillingRow }) {
 
 export function BillingTable({ rows }: { rows: BillingRow[] }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['value']>('open');
-  const shown = rows.filter((r) => (filter === 'open' ? !r.paid_on : filter === 'uninvoiced' ? !r.invoice_issued_on : true));
+  const filtered = rows.filter((r) => (filter === 'open' ? !r.paid_on : filter === 'uninvoiced' ? !r.invoice_issued_on : true));
+  const { sorted: shown, sort, toggle } = useTableSort('billing', filtered, COLUMNS);
+  const head = (key: string, label: string) => <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} />;
   return (
     <section className="bg-white rounded-md border border-rule p-4 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -120,12 +133,12 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-mute border-b border-rule">
-                <th className="py-1 pr-2 font-normal">案件</th>
-                <th className="py-1 pr-2 font-normal">発生</th>
-                <th className="py-1 pr-2 font-normal">金額（円）</th>
-                <th className="py-1 pr-2 font-normal">請求書発行日</th>
-                <th className="py-1 pr-2 font-normal">入金日</th>
-                <th className="py-1 pr-2 font-normal">メモ</th>
+                <th className="py-1 pr-2 font-normal">{head('case', '案件')}</th>
+                <th className="py-1 pr-2 font-normal">{head('occurred', '発生')}</th>
+                <th className="py-1 pr-2 font-normal">{head('amount', '金額（円）')}</th>
+                <th className="py-1 pr-2 font-normal">{head('issued', '請求書発行日')}</th>
+                <th className="py-1 pr-2 font-normal">{head('paid', '入金日')}</th>
+                <th className="py-1 pr-2 font-normal">{head('memo', 'メモ')}</th>
                 <th className="py-1"></th>
               </tr>
             </thead>

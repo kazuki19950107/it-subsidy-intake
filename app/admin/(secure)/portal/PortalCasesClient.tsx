@@ -10,6 +10,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PortalSyncButton } from '@/components/admin/PortalSyncButton';
 import type { PortalCaseWithVendor } from '@/lib/portal/queries';
 import { formatJpDate } from '@/lib/utils/dateCheck';
+import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
+import { SortButton } from '@/components/ui/SortableHead';
+
+const COLUMNS: SortColumns<PortalCaseWithVendor> = {
+  no: (c) => c.application_no,
+  name: (c) => c.applicant_name,
+  pref: (c) => c.prefecture,
+  year: (c) => `${c.fiscal_year ?? ''} ${c.round ?? ''}`.trim() || null,
+  status: (c) => c.status,
+  updated: (c) => c.status_updated_on,
+  handler: (c) => c.handler_name,
+  linked: (c) => c.application?.company_name || c.application?.applicant_name || null,
+};
 
 type VendorSummary = {
   id: string;
@@ -82,6 +95,8 @@ export function PortalCasesClient({
         .some((f) => String(f).toLowerCase().includes(needle));
     });
   }, [cases, q, status, year, vendorId, linkedOnly]);
+  const { sorted, sort, toggle } = useTableSort('portal', filtered, COLUMNS, { firstDir: { updated: 'desc', year: 'desc' } });
+  const head = (key: string, label: string) => <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} />;
 
   return (
     <div className="space-y-4">
@@ -231,18 +246,18 @@ export function PortalCasesClient({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>交付申請番号</TableHead>
-                    <TableHead>申請者名</TableHead>
-                    <TableHead>都道府県</TableHead>
-                    <TableHead>年度 / 募集回</TableHead>
-                    <TableHead>ステータス</TableHead>
-                    <TableHead>更新日</TableHead>
-                    <TableHead>担当事業者</TableHead>
-                    <TableHead>当システムの申請</TableHead>
+                    <TableHead>{head('no', '交付申請番号')}</TableHead>
+                    <TableHead>{head('name', '申請者名')}</TableHead>
+                    <TableHead>{head('pref', '都道府県')}</TableHead>
+                    <TableHead>{head('year', '年度 / 募集回')}</TableHead>
+                    <TableHead>{head('status', 'ステータス')}</TableHead>
+                    <TableHead>{head('updated', '更新日')}</TableHead>
+                    <TableHead>{head('handler', '担当事業者')}</TableHead>
+                    <TableHead>{head('linked', '当システムの申請')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((c) => (
+                  {sorted.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">{c.application_no}</TableCell>
                       <TableCell>
@@ -289,7 +304,7 @@ export function PortalCasesClient({
             </div>
 
             <ul className="md:hidden divide-y divide-rule/60">
-              {filtered.map((c) => (
+              {sorted.map((c) => (
                 <li key={c.id} className="p-3 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">

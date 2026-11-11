@@ -10,7 +10,6 @@ import {
   STATUS_FILTER_OPTIONS,
   VENDOR_FILTER_NONE,
 } from '@/lib/vendors/constants';
-import { DASHBOARD_SORTS, DASHBOARD_SORT_LABELS } from '@/lib/cases/constants';
 import { readSaved, writeSaved } from '@/lib/hooks/useSavedState';
 
 const SELECT =
@@ -165,13 +164,6 @@ export function DashboardFilters({
             <option key={v.id} value={v.id}>
               {v.name}
               {v.active ? '' : '（無効）'}
-            </option>
-          ))}
-        </select>
-        <select value={get('sort') || 'updated'} onChange={(e) => push({ sort: e.target.value })} aria-label="並べ替え" className={`${SELECT} lg:col-span-2`}>
-          {DASHBOARD_SORTS.map((s) => (
-            <option key={s} value={s}>
-              並べ替え: {DASHBOARD_SORT_LABELS[s]}
             </option>
           ))}
         </select>
