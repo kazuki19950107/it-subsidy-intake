@@ -9,6 +9,7 @@ import { ValidationList } from '@/components/upload/ValidationBadge';
 import type { Document } from '@/lib/supabase/types';
 import { DOC_TYPE_LABELS } from '@/lib/claude/docTypes';
 import type { CrossCheckResult } from '@/lib/validation/crossCheck';
+import { fieldLabel, formatFieldValue, orderedFields } from '@/lib/documents/fieldLabels';
 
 type Props = {
   doc: Document;
@@ -113,24 +114,17 @@ export function DocumentViewer({ doc }: Props) {
             <div className="text-xs text-mute mb-2">抽出結果</div>
             {result ? (
               <dl className="space-y-1 text-sm">
-                {Object.entries(result)
-                  .filter(([k]) => !k.startsWith('_'))
-                  .map(([k, v]) => (
-                    <div key={k} className="flex justify-between border-b border-rule/50 py-1">
-                      <dt className="text-mute text-xs">{k}</dt>
-                      <dd className="font-medium text-right ml-2 break-all">
-                        {v == null ? (
-                          <span className="text-mute">未取得</span>
-                        ) : Array.isArray(v) ? (
-                          v.join(', ')
-                        ) : typeof v === 'boolean' ? (
-                          v ? 'はい' : 'いいえ'
-                        ) : (
-                          String(v)
-                        )}
+                {orderedFields(result).map(([k, v]) => {
+                  const shown = formatFieldValue(k, v);
+                  return (
+                    <div key={k} className="flex justify-between gap-3 border-b border-rule/50 py-1">
+                      <dt className="text-mute text-xs shrink-0">{fieldLabel(k)}</dt>
+                      <dd className="font-medium text-right break-all">
+                        {shown == null ? <span className="text-mute">未取得</span> : shown}
                       </dd>
                     </div>
-                  ))}
+                  );
+                })}
               </dl>
             ) : (
               <div className="text-sm text-mute">未解析</div>
