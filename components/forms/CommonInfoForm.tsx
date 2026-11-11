@@ -219,23 +219,10 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
         )}
 
         {gbizStatus === 'acquired' && (
-          <div className="grid gap-3 md:grid-cols-2 mt-3">
-            <div className="space-y-2">
-              <Label htmlFor="gbiz_id_date">取得日</Label>
-              <Input id="gbiz_id_date" type="date" {...registerWithAutoSave('gbiz_id_date')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gbiz_id_email">登録メールアドレス</Label>
-              <Input
-                id="gbiz_id_email"
-                type="email"
-                {...registerWithAutoSave('gbiz_id_email')}
-                placeholder="gbiz登録メール"
-              />
-              {errors.gbiz_id_email && (
-                <p className="text-sm text-accent">{errors.gbiz_id_email.message}</p>
-              )}
-            </div>
+          <div className="space-y-2 mt-3">
+            <Label htmlFor="gbiz_id_email">GビズIDの登録メールアドレス</Label>
+            <Input id="gbiz_id_email" type="email" {...registerWithAutoSave('gbiz_id_email')} placeholder="gbiz登録メール" />
+            {errors.gbiz_id_email && <p className="text-sm text-accent">{errors.gbiz_id_email.message}</p>}
           </div>
         )}
       </div>

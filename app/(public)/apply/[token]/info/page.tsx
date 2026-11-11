@@ -27,7 +27,6 @@ export default async function InfoPage({
     line_display_name: app.line_display_name ?? undefined,
     company_name: app.company_name ?? undefined,
     gbiz_id_status: app.gbiz_id_status ?? 'none',
-    gbiz_id_date: app.gbiz_id_date ?? undefined,
     gbiz_id_email: app.gbiz_id_email ?? undefined,
     requested_amount: app.requested_amount ?? undefined,
     annual_revenue: app.annual_revenue ?? undefined,

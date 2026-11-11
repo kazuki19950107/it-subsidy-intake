@@ -91,6 +91,13 @@ export function VendorDocsPanel({
               )}
             </div>
 
+            <div className="text-xs text-mute">
+              宛名（お客様）: <span className="text-ink">{summary.client.company_name ?? '（未取得）'}</span>
+              {summary.client.representative_name && <span>・代表者 {summary.client.representative_name}</span>}
+              {summary.client.address && <span>・{summary.client.address}</span>}
+              <span className="block">ポータルの申請内容から入れています（無いときは案件の情報）。</span>
+            </div>
+
             {/* ポータルの IT ツール */}
             <div>
               <div className="text-xs font-semibold text-mute mb-1">ポータルの申請内容（ITツール・税抜）</div>
@@ -204,8 +211,9 @@ export function VendorDocsPanel({
             title="お客様への請求書を作る"
             issuerName={vendor.name}
             initial={{
-              billTo: `${client.company_name ?? ''} 御中`,
-              address: client.address,
+              // 宛名・住所はポータルの申請内容を優先（無ければ案件の情報）
+              billTo: `${summary.client.company_name ?? client.company_name ?? ''} 御中`,
+              address: [summary.client.postal ? `〒${summary.client.postal}` : null, summary.client.address ?? client.address].filter(Boolean).join(' ') || null,
               items: items.map((i) => ({ label: i.label, amount: i.amount })),
             }}
             replacing={invoice?.invoice_no ?? null}

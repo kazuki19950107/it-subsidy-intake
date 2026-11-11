@@ -20,8 +20,52 @@ export type PortalDetail = {
   eligible_cost: number | null;
   /** 総事業費合計（税込み） */
   total_cost: number | null;
+  /** 申請者の会社名（法人名・事業者名など） */
+  company_name?: string | null;
+  /** 申請者の住所（本店所在地。都道府県・市区町村・番地が分かれていればつなげる） */
+  address?: string | null;
+  /** 申請者の郵便番号 */
+  postal?: string | null;
+  /** 代表者役職 */
+  representative_title?: string | null;
+  /** 画面の「基本情報」あたりの本文（見出しの確認・読み取りの調整用。最大 3000 文字） */
+  basic_text?: string | null;
   fetched_at: string;
 };
+
+/** いくつかの見出しのうち、最初に見つかったものの値 */
+function firstValue(lines: string[], labels: string[]): string | null {
+  for (const l of labels) {
+    const v = valueAfter(lines, l);
+    if (v && v.trim() && !/^[-ー－]$/.test(v.trim())) return v.trim();
+  }
+  return null;
+}
+
+const COMPANY_LABELS = ['法人名', '法人名称', '事業者名', '事業者名称', '商号', '商号又は名称', '申請者名', '名称', '屋号'];
+const ADDRESS_LABELS = ['本店所在地', '本社所在地', '所在地', '住所', '事業所所在地'];
+const ADDRESS_PARTS = [
+  ['都道府県'],
+  ['市区町村', '市区郡町村'],
+  ['番地', '町名・番地', '丁目・番地', '町域・番地'],
+  ['建物名', 'ビル・建物名', '建物名・部屋番号'],
+];
+
+/** 申請者の会社名・住所など（見出しの書き方の違いを吸収する） */
+export function parseApplicantParty(lines: string[]) {
+  let address = firstValue(lines, ADDRESS_LABELS);
+  if (!address) {
+    const parts = ADDRESS_PARTS.map((labels) => firstValue(lines, labels)).filter(Boolean);
+    address = parts.length >= 2 ? parts.join('') : null;
+  }
+  const postal = firstValue(lines, ['郵便番号', '本店郵便番号'])?.replace(/[^0-9０-９-－]/g, '') || null;
+  return {
+    company_name: firstValue(lines, COMPANY_LABELS),
+    address,
+    postal,
+    representative_title: firstValue(lines, ['代表者役職', '代表者の役職']),
+  };
+}
 
 /** "3,089,333円" → 3089333 */
 export function parseYen(v: string | null | undefined): number | null {
@@ -71,8 +115,19 @@ export function parsePortalDetail(text: string, toolRows: string[][], fetchedAt 
     subsidy_requested: parseYen(valueAfter(lines, '補助金申請額合計')),
     eligible_cost: parseYen(valueAfter(lines, '補助対象経費合計（税抜き）')),
     total_cost: parseYen(valueAfter(lines, '総事業費合計（税込み）')),
+    ...parseApplicantParty(lines),
+    basic_text: basicText(lines),
     fetched_at: fetchedAt,
   };
+}
+
+/** 「基本情報」から ITツールの前までの本文（無ければ先頭から） */
+function basicText(lines: string[]): string | null {
+  const start = Math.max(0, lines.findIndex((l) => l === '基本情報'));
+  const endIdx = lines.findIndex((l, i) => i > start && /ITツール/.test(l));
+  const slice = lines.slice(start, endIdx > start ? endIdx : start + 80);
+  const t = slice.join('\n').slice(0, 3000);
+  return t || null;
 }
 
 /** ツール名から、ツールマスタ（BU・LU など）の該当を探す。名前・頭文字のどちらかが含まれていれば一致 */

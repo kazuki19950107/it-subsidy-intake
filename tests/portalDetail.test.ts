@@ -37,10 +37,27 @@ const TOOL_ROWS = [
   ['DL07-0000002\n01', 'PCセキュリティパック\nセキュリティ', 'ライセンス不要', '9,000\n/箇年', '1', '1', '9,000', '9,000', '9,000', ''],
 ];
 
+describe('申請者の会社名・住所', () => {
+  it('ひとつの見出しで書かれているとき', () => {
+    const d = parsePortalDetail(['基本情報', '法人名', '株式会社ピクシー', '本店所在地', '兵庫県川西市南花屋敷4-3-16', '代表者役職', '代表取締役', '代表者氏名', '白石 道識', 'ITツール'].join(String.fromCharCode(10)), []);
+    expect(d.company_name).toBe('株式会社ピクシー');
+    expect(d.address).toBe('兵庫県川西市南花屋敷4-3-16');
+    expect(d.representative_name).toBe('白石 道識');
+    expect(d.representative_title).toBe('代表取締役');
+    expect(d.basic_text).toContain('本店所在地');
+  });
+  it('都道府県・市区町村・番地が分かれているとき', () => {
+    const d = parsePortalDetail(['基本情報', '事業者名', 'A社', '郵便番号', '666-0026', '都道府県', '兵庫県', '市区町村', '川西市', '番地', '南花屋敷4-3-16'].join(String.fromCharCode(10)), []);
+    expect(d.company_name).toBe('A社');
+    expect(d.address).toBe('兵庫県川西市南花屋敷4-3-16');
+    expect(d.postal).toBe('666-0026');
+  });
+});
+
 describe('parsePortalDetail', () => {
   it('募集回・法人番号・代表者・ツール・金額を読み取る', () => {
     const d = parsePortalDetail(TEXT, TOOL_ROWS, '2026-11-11T00:00:00Z');
-    expect(d).toEqual({
+    expect(d).toMatchObject({
       round: 3,
       corporate_number: '1234567890123',
       representative_name: '山田',

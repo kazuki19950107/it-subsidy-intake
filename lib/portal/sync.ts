@@ -128,6 +128,8 @@ export async function syncVendorPortal(
         const prev = prevByNo.get(r.application_no);
         const d = detailFromRaw(prev?.raw);
         if (!d) return true;
+        // 会社名・住所を読むようにする前に読んだ詳細は、もう一度読む
+        if (!('basic_text' in d)) return true;
         if ((prev?.status ?? '') !== (r.status ?? '')) return true;
         return Date.now() - new Date(d.fetched_at).getTime() > 30 * 86400_000;
       },

@@ -45,6 +45,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const supabase = createServiceRoleClient();
   const update: Record<string, unknown> = { ...parsed.data };
+  // 空欄は null にする（日付の列に "" を入れると DB がエラーになるため）
+  for (const k of ['gbiz_id_date', 'gbiz_id_email'] as const) {
+    if (update[k] === '') update[k] = null;
+  }
   if ('company_name' in update) {
     update.company_name_normalized = normalizeName(update.company_name as string | null) || null;
   }

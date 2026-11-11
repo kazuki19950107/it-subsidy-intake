@@ -72,6 +72,18 @@ export async function loadVendorCaseContext(applicationId: string): Promise<Vend
   return { app, vendor, detail, items: itemsFromPortal(detail) };
 }
 
+/** お客様（甲）の会社名・住所・代表者。ポータルの申請内容を優先し、無ければ案件の情報 */
+export function clientParty(ctx: VendorCaseContext): { company_name: string | null; address: string | null; representative_name: string | null; postal: string | null } {
+  const d = ctx.detail;
+  const pick = (a: string | null | undefined, b: string | null | undefined) => (a && a.trim() ? a.trim() : b && b.trim() ? b.trim() : null);
+  return {
+    company_name: pick(d?.company_name, ctx.app.company_name || ctx.app.applicant_name),
+    address: pick(d?.address, ctx.app.address),
+    representative_name: pick(d?.representative_name, ctx.app.representative_name),
+    postal: d?.postal ?? null,
+  };
+}
+
 function requireVendor(ctx: VendorCaseContext): VendorContact {
   if (!ctx.vendor) throw new InvoiceError('案件にベンダーが設定されていません（案件の情報でベンダーを選んでください）');
   return ctx.vendor;
@@ -103,8 +115,9 @@ export async function createVendorInvoice(applicationId: string, input: InvoiceI
 export function vendorContractBody(ctx: VendorCaseContext, items: InvoiceItem[]): { title: string; html: string } {
   const vendor = requireVendor(ctx);
   const settings = vendorSettings(vendor);
+  const party = clientParty(ctx);
   const vars = vendorContractVars({
-    client: ctx.app,
+    client: { ...ctx.app, company_name: party.company_name, address: party.address, representative_name: party.representative_name },
     vendor: settings,
     items,
     subsidyAmount: ctx.app.subsidy_amount ?? ctx.detail?.subsidy_requested ?? null,
@@ -164,6 +177,8 @@ export async function createVendorContract(applicationId: string, items: Invoice
 
 export type VendorDocsSummary = {
   vendor: { id: string; name: string; missing: string[] } | null;
+  /** 宛名（ポータルの申請内容を優先） */
+  client: { company_name: string | null; address: string | null; representative_name: string | null; postal: string | null };
   items: InvoiceItem[];
   detailFetchedAt: string | null;
   invoice: { id: string; invoice_no: string; total: number; issued_on: string; due_on: string } | null;
@@ -206,6 +221,7 @@ export async function vendorDocsSummary(applicationId: string): Promise<VendorDo
   }
   return {
     vendor,
+    client: clientParty(ctx),
     items: ctx.items,
     detailFetchedAt: ctx.detail?.fetched_at ?? null,
     invoice: (inv as VendorDocsSummary['invoice']) ?? null,
