@@ -31,6 +31,8 @@ import { CaseInfoEditor } from './CaseInfoEditor';
 import { ChecksPanel, type CheckRow } from './ChecksPanel';
 import { ContractPanel } from './ContractPanel';
 import { VendorDocsPanel } from './VendorDocsPanel';
+import { NextActionCard } from './NextActionCard';
+import { nextAction } from '@/lib/cases/nextAction';
 import { vendorDocsSummary } from '@/lib/vendorDocs/service';
 import { BillingPanel, HistoryPanel, LineGroupsPanel } from './CaseSidePanels';
 
@@ -99,6 +101,23 @@ export default async function ApplicationDetailPage({
     .map((c) => ({ id: c.id, name: c.def?.name ?? '', due_on: c.due_on, done_at: c.done_at, done_by: c.done_by }));
   const contract = contractRes.data as Contract | null;
   const staffReviewDocs = documents.filter((d) => d.needs_staff_review);
+  const billingRow = (billingRes.data as BillingSchedule | null) ?? null;
+  const lineGroups = (groupsRes.data ?? []) as LineGroup[];
+  const na = nextAction({
+    infoFilled: !!(application.company_name && application.representative_name && application.address),
+    consent: contract ? (contract.status === 'void' ? 'none' : contract.status) : 'none',
+    lineLinked: lineGroups.some((g) => g.kind === 'customer' && g.active),
+    formSubmitted: !!(application.submitted_at || application.documents_submitted_at),
+    staffReviewCount: staffReviewDocs.length,
+    portalLinked: !!application.portal_application_no,
+    rejected: /不採択|辞退|取下|破棄/.test(application.portal_status ?? ''),
+    adopted: !!application.adopted_at,
+    vendorSet: !!application.vendor_contact_id,
+    vendorContract: vendorDocs.contract ? (vendorDocs.contract.status === 'void' ? 'none' : vendorDocs.contract.status) : 'none',
+    vendorInvoice: !!vendorDocs.invoice,
+    grantDecided: !!application.grant_decided_at,
+    billing: billingRow ? { issued: !!billingRow.invoice_issued_on, paid: !!billingRow.paid_on } : null,
+  });
 
   const byType = documents.reduce<Record<string, Document>>((acc, d) => {
     acc[d.doc_type] = d;
@@ -156,6 +175,8 @@ export default async function ApplicationDetailPage({
         </div>
       </div>
 
+      <NextActionCard na={na} />
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
@@ -193,13 +214,16 @@ export default async function ApplicationDetailPage({
         />
       </div>
 
-      <CaseInfoEditor
-        key={`${application.updated_at}-${application.stage_id}-${application.fee_estimated}-${application.fee_confirmed}`}
-        app={application}
-        tools={options.tools} accounts={options.accounts} stages={options.stages} />
+      <div id="case-info" className="scroll-mt-20">
+        <CaseInfoEditor
+          key={`${application.updated_at}-${application.stage_id}-${application.fee_estimated}-${application.fee_confirmed}`}
+          app={application}
+          tools={options.tools} accounts={options.accounts} stages={options.stages} />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <ChecksPanel applicationId={application.id} checks={checks} defs={options.checkDefs} />
+        <div id="consent" className="scroll-mt-20">
         <ContractPanel
           applicationId={application.id}
           contract={
@@ -218,17 +242,26 @@ export default async function ApplicationDetailPage({
               : null
           }
         />
-        <LineGroupsPanel groups={(groupsRes.data ?? []) as LineGroup[]} />
-        <BillingPanel schedule={(billingRes.data as BillingSchedule | null) ?? null} />
-        <VendorDocsPanel
-          applicationId={application.id}
-          summary={vendorDocs}
-          client={{ company_name: application.company_name || application.applicant_name, address: application.address }}
-          contractUrl={vendorDocs.contract ? contractUrl(vendorDocs.contract.token) : null}
-        />
+        </div>
+        <div id="line-groups" className="scroll-mt-20">
+          <LineGroupsPanel groups={lineGroups} />
+        </div>
+        <div id="billing" className="scroll-mt-20">
+          <BillingPanel schedule={billingRow} />
+        </div>
+        <div id="vendor-docs" className="scroll-mt-20 md:col-span-2">
+          <VendorDocsPanel
+            applicationId={application.id}
+            summary={vendorDocs}
+            client={{ company_name: application.company_name || application.applicant_name, address: application.address }}
+            contractUrl={vendorDocs.contract ? contractUrl(vendorDocs.contract.token) : null}
+          />
+        </div>
       </div>
 
-      <ApplyUrlBlock token={application.token} />
+      <div id="apply-url" className="scroll-mt-20">
+        <ApplyUrlBlock token={application.token} />
+      </div>
 
       <AgentShareBlock
         applicationId={application.id}
@@ -326,7 +359,7 @@ export default async function ApplicationDetailPage({
       <HistoryPanel history={(historyRes.data ?? []) as StatusHistory[]} />
 
       <div>
-        <h2 className="text-lg font-bold text-ink mb-3">提出書類</h2>
+        <h2 id="documents" className="text-lg font-bold text-ink mb-3 scroll-mt-20">提出書類</h2>
         <div className="space-y-4">
           {documents.length === 0 ? (
             <div className="text-center py-8 text-mute text-sm">まだ書類がアップロードされていません。</div>

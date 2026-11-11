@@ -68,7 +68,7 @@ export function VendorDocsPanel({
   };
 
   return (
-    <Card className="md:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle>ベンダーからお客様への書類（採択後）</CardTitle>
       </CardHeader>

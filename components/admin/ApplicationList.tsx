@@ -21,7 +21,24 @@ export type ApplicationWithProgress = Application & {
   _staffName?: string | null;
   _nextDue?: string | null;
   _openChecks?: number;
+  /** 次にやること（フェーズ・だれが） */
+  _next?: { label: string; who: 'staff' | 'customer' | 'auto'; phase: number } | null;
 };
+
+const CIRCLED = ['', '①', '②', '③', '④', '⑤', '✓'];
+
+function NextLabel({ next }: { next?: ApplicationWithProgress['_next'] }) {
+  if (!next) return <span className="text-mute text-xs">-</span>;
+  const tone =
+    next.phase === 6 ? 'text-ok' : next.who === 'staff' ? 'text-ink font-semibold' : 'text-mute';
+  return (
+    <span className={`inline-flex items-center gap-1 text-[12px] whitespace-nowrap ${tone}`} title={next.who === 'staff' ? '社内がやること' : next.who === 'customer' ? 'お客様を待っている' : '自動で進むのを待っている'}>
+      <span className="text-[13px]">{CIRCLED[next.phase] ?? ''}</span>
+      {next.label}
+      {next.who === 'customer' && next.phase !== 6 ? <span className="text-[10px]">待ち</span> : null}
+    </span>
+  );
+}
 
 function StageBadge({ stage }: { stage?: { name: string; color: string } | null }) {
   if (!stage) return <span className="text-mute text-xs">-</span>;
@@ -73,6 +90,7 @@ const STEP_LABEL: Record<string, string> = {
 
 const COLUMNS: SortColumns<ApplicationWithProgress> = {
   stage: (a) => a._stage?.order ?? null,
+  next: (a) => (a._next ? a._next.phase * 10 + (a._next.who === 'staff' ? 0 : 1) : null),
   company: (a) => a.company_name || a.applicant_name || null,
   round: (a) => (a.round != null ? a.round * 1000 : null),
   tool: (a) => a._toolCode ?? null,
@@ -84,6 +102,7 @@ const COLUMNS: SortColumns<ApplicationWithProgress> = {
 };
 const COLUMN_LABELS: Record<string, string> = {
   stage: '段階',
+  next: '次にやること',
   company: '会社名',
   round: '回次',
   tool: 'ツール',
@@ -131,6 +150,7 @@ export function ApplicationList({
           <TableHeader>
             <TableRow>
               <TableHead>{head('stage', '段階')}</TableHead>
+              <TableHead>{head('next', '次にやること')}</TableHead>
               <TableHead>{head('company', '会社・申請者')}</TableHead>
               <TableHead>
                 {head('round', '回次')}
@@ -152,6 +172,9 @@ export function ApplicationList({
                 <TableRow key={a.id}>
                   <TableCell>
                     <StageBadge stage={a._stage} />
+                  </TableCell>
+                  <TableCell>
+                    <NextLabel next={a._next} />
                   </TableCell>
                   <TableCell>
                     <div className="font-medium text-ink">
@@ -252,6 +275,7 @@ export function ApplicationList({
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1 flex-wrap">
                     <StageBadge stage={a._stage} />
+                    <NextLabel next={a._next} />
                     <Badge variant={status.variant}>{status.label}</Badge>
                   </div>
                   <span className="text-[11px] text-mute">{formatJpDate(a.updated_at)}</span>

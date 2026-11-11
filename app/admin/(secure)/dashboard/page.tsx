@@ -13,13 +13,18 @@ import { computeProgress } from '@/lib/utils/progress';
 import { getDocRules } from '@/lib/docRules/settings';
 import { requiredDocsFor } from '@/lib/docRules/defaults';
 import type { Application, CheckItemDef, DocType, Stage, VendorContact } from '@/lib/supabase/types';
+import { nextAction } from '@/lib/cases/nextAction';
 
 // 静的プリレンダーされると admin_memo 編集や新規発行が反映されないため毎回SSR。
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type DashboardRow = Application & {
-  documents: Array<{ doc_type: DocType }>;
+  documents: Array<{ doc_type: DocType; needs_staff_review: boolean | null }>;
+  contracts: Array<{ kind: string | null; status: string }>;
+  line_groups: Array<{ kind: string; active: boolean }>;
+  invoices: Array<{ kind: string; voided_at: string | null }>;
+  billing_schedules: Array<{ invoice_issued_on: string | null; paid_on: string | null }> | { invoice_issued_on: string | null; paid_on: string | null } | null;
   vendor: Pick<VendorContact, 'id' | 'name' | 'active'> | null;
   stage: Pick<Stage, 'id' | 'name' | 'color' | 'sort_order'> | null;
   tool: { id: string; code: string } | null;
@@ -50,6 +55,35 @@ function matchesQuery(r: DashboardRow, q: string): boolean {
   ]
     .filter(Boolean)
     .some((f) => String(f).toLowerCase().includes(needle));
+}
+
+/** 一覧に出す「次にやること」（案件の詳細のいちばん上と同じ判定） */
+function nextFor(r: DashboardRow): { label: string; who: 'staff' | 'customer' | 'auto'; phase: number } | null {
+  const pick = (kind: string) => {
+    const c = (r.contracts ?? []).filter((x) => (x.kind ?? 'consent') === kind && x.status !== 'void');
+    if (c.some((x) => x.status === 'signed')) return 'signed' as const;
+    if (c.some((x) => x.status === 'viewed')) return 'viewed' as const;
+    return c.length ? ('sent' as const) : ('none' as const);
+  };
+  const bs = Array.isArray(r.billing_schedules) ? r.billing_schedules[0] : r.billing_schedules;
+  const na = nextAction({
+    infoFilled: !!(r.company_name && r.representative_name && r.address),
+    consent: pick('consent'),
+    lineLinked: (r.line_groups ?? []).some((g) => g.kind === 'customer' && g.active),
+    formSubmitted: !!(r.submitted_at || r.documents_submitted_at),
+    staffReviewCount: (r.documents ?? []).filter((d) => d.needs_staff_review).length,
+    portalLinked: !!r.portal_application_no,
+    rejected: /不採択|辞退|取下|破棄/.test(r.portal_status ?? ''),
+    adopted: !!r.adopted_at,
+    vendorSet: !!r.vendor_contact_id,
+    vendorContract: pick('vendor_client'),
+    vendorInvoice: (r.invoices ?? []).some((i) => i.kind === 'vendor_to_client' && !i.voided_at),
+    grantDecided: !!r.grant_decided_at,
+    billing: bs ? { issued: !!bs.invoice_issued_on, paid: !!bs.paid_on } : null,
+  });
+  if (na.finished === 'rejected') return { label: '終了（不採択）', who: 'auto', phase: 3 };
+  if (!na.next) return { label: '完了', who: 'auto', phase: 6 };
+  return { label: na.next.label, who: na.next.who, phase: na.next.phase };
 }
 
 /** 未完了のチェックのうち最も近い期限 */
@@ -92,7 +126,7 @@ export default async function DashboardPage({
     supabase
       .from('applications')
       .select(
-        '*, documents(doc_type), vendor:vendor_contacts(id, name, active), stage:stages(id, name, color, sort_order), tool:tools(id, code), staff:accounts(id, name), case_checks(check_item_def_id, due_on, done_at)',
+        '*, documents(doc_type, needs_staff_review), vendor:vendor_contacts(id, name, active), stage:stages(id, name, color, sort_order), tool:tools(id, code), staff:accounts(id, name), case_checks(check_item_def_id, due_on, done_at), contracts(kind, status), line_groups(kind, active), invoices(kind, voided_at), billing_schedules(invoice_issued_on, paid_on)',
       )
       .order('updated_at', { ascending: false }),
     supabase.from('vendor_contacts').select('id, name, active').order('name', { ascending: true }),
@@ -136,6 +170,7 @@ export default async function DashboardPage({
       _staffName: r.staff?.name ?? null,
       _nextDue: nextDue(r),
       _openChecks: openChecks,
+      _next: nextFor(r),
     };
   });
 
