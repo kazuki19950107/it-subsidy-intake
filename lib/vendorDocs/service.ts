@@ -2,7 +2,8 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { Application, Contract, PortalCase, VendorContact } from '@/lib/supabase/types';
-import { addHistory, jstToday, type Actor } from '@/lib/cases/service';
+import { addHistory, jstToday, listStages, type Actor } from '@/lib/cases/service';
+import { stageReached } from '@/lib/cases/nextAction';
 import { renderContractHtml, type ContractVars } from '@/lib/contracts/template';
 import { DEFAULT_INVOICE_SETTINGS, type InvoiceItem, type InvoiceSettings } from '@/lib/billing/invoice';
 import { InvoiceError, issueInvoice, previewPdf, type InvoiceInput, type InvoiceRecord, type Issuer } from '@/lib/billing/invoiceService';
@@ -177,6 +178,40 @@ export async function createVendorContract(applicationId: string, items: Invoice
   return data as Contract;
 }
 
+/** 契約書を自動で作れないとき、その理由（作れるなら null） */
+export async function autoContractBlocker(ctx: VendorCaseContext): Promise<string | null> {
+  const a = ctx.app;
+  if (/不採択|辞退|取下|破棄/.test(a.portal_status ?? '')) return '不採択などのため作りません';
+  const adopted =
+    !!(a.adopted_at || a.grant_decided_at || a.subsidy_paid_at) || stageReached(a.stage_id, await listStages(), 'adopted', a.portal_status);
+  if (!adopted) return '採択されると、自動で作られます';
+  if (!ctx.vendor) return '案件のベンダーを選ぶと、自動で作られます';
+  if (!ctx.vendor.address) return `ベンダー「${ctx.vendor.name}」の「請求書・契約書」に住所を入れると、自動で作られます`;
+  if (ctx.items.length === 0) return 'ポータルからツールと金額が読めると、自動で作られます（毎朝の同期で読みます）';
+  return null;
+}
+
+/**
+ * 採択後の契約書を、条件がそろっていれば自動で作る（すでにあれば何もしない）。
+ * 毎朝の同期・ポータルとの紐付け・案件の保存・ベンダーの設定の保存のときに呼ぶ。
+ */
+export async function ensureVendorContract(applicationId: string): Promise<'created' | 'exists' | 'blocked'> {
+  const supabase = createServiceRoleClient();
+  const { data: existing } = await supabase
+    .from('contracts')
+    .select('id')
+    .eq('application_id', applicationId)
+    .eq('kind', 'vendor_client')
+    .neq('status', 'void')
+    .limit(1)
+    .maybeSingle();
+  if (existing) return 'exists';
+  const ctx = await loadVendorCaseContext(applicationId);
+  if (await autoContractBlocker(ctx)) return 'blocked';
+  await createVendorContract(applicationId, null, { type: 'system', name: '自動作成' });
+  return 'created';
+}
+
 export type VendorDocsSummary = {
   vendor: { id: string; name: string; missing: string[] } | null;
   /** 宛名（ポータルの申請内容を優先） */
@@ -185,6 +220,8 @@ export type VendorDocsSummary = {
   detailFetchedAt: string | null;
   invoice: { id: string; invoice_no: string; total: number; issued_on: string; due_on: string } | null;
   contract: Pick<Contract, 'id' | 'token' | 'status' | 'title' | 'signed_at' | 'signer_name' | 'created_at'> | null;
+  /** 契約書がまだ無いとき、自動で作られていない理由 */
+  contractBlocker: string | null;
 };
 
 /** 案件の詳細に出す、ベンダーの書類のようす */
@@ -222,6 +259,7 @@ export async function vendorDocsSummary(applicationId: string): Promise<VendorDo
     vendor = { id: ctx.vendor.id, name: ctx.vendor.name, missing };
   }
   return {
+    contractBlocker: con ? null : await autoContractBlocker(ctx),
     vendor,
     client: clientParty(ctx),
     items: ctx.items,

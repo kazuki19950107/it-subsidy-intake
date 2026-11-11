@@ -158,9 +158,10 @@ export function caseSteps(s: NextActionInput): Step[] {
       label: '契約書（ベンダー）',
       done: s.vendorContract !== 'none',
       who: 'staff',
+      // 契約書は条件がそろうと自動で作られる。まだ無いときは、足りないもの（ベンダーの欄に理由が出る）を入れる
       action: s.vendorSet
-        ? 'ベンダーとお客様の契約書を作って、署名URLを送る'
-        : 'ベンダーを選び、契約書を作る',
+        ? 'ベンダーとお客様の契約書がまだありません（自動で作られない理由は、ベンダーの書類の欄に出ます）'
+        : 'ベンダーを選ぶと、契約書が自動で作られます',
       target: s.vendorSet ? '#vendor-docs' : '#vendor',
       targetLabel: s.vendorSet ? 'ベンダーの書類へ' : 'ベンダーを選ぶ',
     },
@@ -180,7 +181,7 @@ export function caseSteps(s: NextActionInput): Step[] {
       label: '契約書の署名',
       done: s.vendorContract === 'signed',
       who: 'customer',
-      action: 'お客様の契約書への署名を待っています',
+      action: '契約書の署名URLをお客様に送り、署名を待っています',
       target: '#vendor-docs',
       targetLabel: '署名URLを見る',
     },

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { unknownVars } from '@/lib/vendorDocs/template';
+import { ensureVendorContract } from '@/lib/vendorDocs/service';
 
 // ベンダーの「請求書・契約書の設定」（お客様へ出す請求書・契約書の発行元の情報と、契約書の文面）
+export const maxDuration = 60;
 const opt = (max: number) => z.string().max(max).nullable().optional();
 const schema = z.object({
   legal_name: opt(200),
@@ -58,5 +60,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     })
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  // このベンダーの採択済みの案件で、まだ契約書が無いものは自動で作る
+  const { data: apps } = await supabase.from('applications').select('id').eq('vendor_contact_id', id);
+  let created = 0;
+  for (const a of apps ?? []) {
+    if ((await ensureVendorContract(a.id as string).catch(() => 'blocked')) === 'created') created++;
+  }
+  return NextResponse.json({ ok: true, contractsCreated: created });
 }

@@ -16,6 +16,7 @@ import { addHistory, applyPortalStatus } from '@/lib/cases/service';
 import { roundFromPortal } from './match';
 import type { PortalDetail } from './detail';
 import { applyPortalDetailToCase, detailFromRaw } from './applyDetail';
+import { ensureVendorContract } from '@/lib/vendorDocs/service';
 
 export type CaseStatusChange = {
   applicationId: string;
@@ -218,6 +219,8 @@ export async function syncVendorPortal(
       // 詳細（ツール・補助金申請額・法人番号・代表者）で案件の空欄を埋める
       const d = detailOf(r.application_no);
       if (d) await applyPortalDetailToCase(c.id, d);
+      // 採択後の契約書（ベンダー → お客様）を、条件がそろっていれば自動で作る
+      await ensureVendorContract(c.id).catch((e) => console.error('[portal sync] vendor contract', (e as Error).message));
     }
 
     await supabase

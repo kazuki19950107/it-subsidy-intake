@@ -193,13 +193,24 @@ export function VendorDocsPanel({
                     </a>
                   </>
                 ) : (
-                  <div className="text-xs text-mute">まだ作っていません。作ると署名URLができ、お客様に送れます。</div>
+                  <div className="text-xs text-mute">
+                    まだありません。{summary.contractBlocker ?? '条件はそろっています（次の保存か同期で作られます）'}
+                  </div>
                 )}
-                <div>
-                  <Button size="sm" variant={contract ? 'outline' : 'default'} onClick={makeContract} disabled={busy}>
-                    {busy ? '作成中…' : contract ? '契約書を作り直す' : '契約書を作る'}
-                  </Button>
-                </div>
+                {contract ? (
+                  <div>
+                    <Button size="sm" variant="outline" onClick={makeContract} disabled={busy}>
+                      {busy ? '作成中…' : '契約書を作り直す'}
+                    </Button>
+                  </div>
+                ) : !summary.contractBlocker ? (
+                  <div>
+                    <Button size="sm" onClick={makeContract} disabled={busy}>
+                      {busy ? '作成中…' : '今すぐ作る'}
+                    </Button>
+                  </div>
+                ) : null}
+                <p className="text-[11px] text-mute">採択後、ポータルのツールと金額が読めると自動で作られます。署名URLはお客様に送ってください。</p>
               </div>
             </div>
           </>

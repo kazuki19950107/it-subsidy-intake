@@ -14,6 +14,7 @@ import {
 } from '@/lib/cases/service';
 import type { Application } from '@/lib/supabase/types';
 import { applyPortalDetailToCase, detailFromRaw } from '@/lib/portal/applyDetail';
+import { ensureVendorContract } from '@/lib/vendorDocs/service';
 
 const nullableText = (max: number) =>
   z
@@ -238,6 +239,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } else if ('subsidy_amount' in update || 'tool_id' in update) {
     await recalcFeesAndBilling(id, actor);
   }
+
+  // 採択後の契約書を、条件がそろっていれば自動で作る
+  await ensureVendorContract(id).catch(() => {});
 
   await auditLog({
     actorType: 'admin',
