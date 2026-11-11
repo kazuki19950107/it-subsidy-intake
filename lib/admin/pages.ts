@@ -35,7 +35,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { href: '/admin/talk', label: 'トーク', icon: MessagesSquare, nav: true, description: 'お客様・社内のLINEグループの会話を見て、ここから返信する（LINEと同じ見た目）' },
   { href: '/admin/line', label: 'LINE', icon: MessageCircle, nav: true, description: 'グループの紐付け・社内用グループの指定・送れなかった通知' },
   { href: '/admin/settings', label: '設定', icon: Settings, nav: true, description: '段階・チェック項目・ツールとフィー・社内担当・書類の判定・請求書（請求元・振込先・税）' },
-  { href: '/admin/vendors', label: 'ベンダー', icon: Building2, nav: true, description: 'ベンダーとポータルのログイン情報' },
+  { href: '/admin/vendors', label: 'ベンダー', icon: Building2, nav: true, description: 'ベンダーとポータルのログイン情報・お客様へ出す請求書と契約書の発行元の情報' },
   { href: '/admin/import', label: 'CSV一括登録', icon: Upload, nav: false, description: '既存の案件をCSVでまとめて登録（案件一覧の右上から開く）' },
   { href: '/api/admin/export?format=csv', label: 'CSV', icon: Download, nav: true, external: true, description: '申請内容をCSVでダウンロード' },
   { href: '/admin/guide', label: '使い方', icon: BookOpen, nav: true, description: 'このページ' },

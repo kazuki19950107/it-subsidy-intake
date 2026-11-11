@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { AGENT_NAME, signedPdfUrl } from '@/lib/contracts/service';
+import { contractLabel, partyBName, signedPdfUrl } from '@/lib/contracts/service';
 import { contractPdfHtml, renderPdf } from '@/lib/contracts/pdf';
 import type { Contract } from '@/lib/supabase/types';
 
@@ -20,11 +20,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!url) return NextResponse.json({ error: 'PDF が見つかりません' }, { status: 404 });
     return NextResponse.redirect(url);
   }
-  const pdf = await renderPdf(contractPdfHtml(contract, { agentName: AGENT_NAME }));
+  const pdf = await renderPdf(contractPdfHtml(contract, { agentName: partyBName(contract) }));
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(`${contract.title}（未署名）.pdf`)}`,
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(`${contract.title}（未署名・${contractLabel(contract)}）.pdf`)}`,
     },
   });
 }

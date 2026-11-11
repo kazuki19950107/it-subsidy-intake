@@ -14,6 +14,7 @@ const FIELD_LABELS: Record<string, string> = {
   portal_application_no: '申請番号',
   check: 'チェック',
   contract: '同意書',
+  vendor_contract: 'ベンダーとの契約書',
   created: '案件の登録',
   fee_estimated: 'フィー見込み額',
   fee_confirmed: 'フィー確定額',

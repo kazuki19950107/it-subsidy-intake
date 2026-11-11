@@ -14,7 +14,7 @@ export default async function BillingPage() {
   const [{ data: apps }, { data: schedules }, { data: invoiceRows }, invoiceSettings] = await Promise.all([
     supabase
       .from('applications')
-      .select('id, company_name, applicant_name, address, round, fee_estimated, fee_confirmed, tool:tools(code, name)'),
+      .select('id, company_name, applicant_name, address, round, fee_estimated, fee_confirmed, tool:tools(code, name), vendor:vendor_contacts(name, legal_name, address)'),
     supabase.from('billing_schedules').select('*').order('occurred_on', { ascending: false }),
     supabase
       .from('invoices')
@@ -37,6 +37,7 @@ export default async function BillingPage() {
     fee_estimated: number | null;
     fee_confirmed: number | null;
     tool: { code: string; name: string } | null;
+    vendor: { name: string; legal_name: string | null; address: string | null } | null;
   }>;
   const revenueCases: RevenueCase[] = appRows.map((a) => {
     const s = scheduleByApp.get(a.id);
@@ -60,6 +61,8 @@ export default async function BillingPage() {
       round: a?.round ?? null,
       company_name: a?.company_name ?? a?.applicant_name ?? null,
       company_address: a?.address ?? null,
+      vendor_name: a?.vendor ? a.vendor.legal_name || a.vendor.name : null,
+      vendor_address: a?.vendor?.address ?? null,
       invoice: invoiceBySchedule.get(s.id) ?? null,
     };
   });
@@ -73,7 +76,18 @@ export default async function BillingPage() {
         </p>
       </div>
 
-      <BillingTable rows={billingRows} itemLabel={invoiceSettings.item_label} missingSettings={missingSettings(invoiceSettings)} />
+      <BillingTable
+        rows={billingRows}
+        config={{
+          issuerName: invoiceSettings.issuer_name,
+          itemLabel: invoiceSettings.item_label,
+          missingSettings: missingSettings(invoiceSettings),
+          amountHint:
+            invoiceSettings.tax_mode === 'inclusive'
+              ? `税込で入れる・消費税${Math.round(invoiceSettings.tax_rate * 100)}%を含む`
+              : `税別で入れる・消費税${Math.round(invoiceSettings.tax_rate * 100)}%を上乗せ`,
+        }}
+      />
 
       <h2 className="text-lg font-bold text-ink">売上見込み</h2>
       <div className="grid gap-4 lg:grid-cols-3">

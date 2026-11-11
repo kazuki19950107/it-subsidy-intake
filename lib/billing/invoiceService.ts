@@ -81,15 +81,18 @@ export type InvoiceInput = {
 
 export class InvoiceError extends Error {}
 
+/** 発行元（自社の設定、またはベンダーの情報） */
+export type Issuer = { settings: InvoiceSettings; vendorId: string | null; missingHint: string };
+
+export async function selfIssuer(): Promise<Issuer> {
+  return { settings: await getInvoiceSettings(), vendorId: null, missingHint: '設定の「請求書」' };
+}
+
 /** 請求書の中身を組み立てる（保存はしない。プレビューにも使う） */
-export async function buildInvoiceDoc(
-  schedule: BillingSchedule,
-  input: InvoiceInput,
-  no: string,
-): Promise<{ doc: InvoiceDoc; settings: InvoiceSettings }> {
-  const settings = await getInvoiceSettings();
+export function buildInvoiceDoc(issuer: Issuer, transactionOn: string, input: InvoiceInput, no: string): InvoiceDoc {
+  const settings = issuer.settings;
   const missing = missingSettings(settings);
-  if (missing.length) throw new InvoiceError(`設定の「請求書」で次を入れてください: ${missing.join('・')}`);
+  if (missing.length) throw new InvoiceError(`${issuer.missingHint}で次を入れてください: ${missing.join('・')}`);
   const items = input.items.filter((it) => it.label.trim() && Number.isFinite(it.amount));
   if (items.length === 0) throw new InvoiceError('品目と金額を入れてください');
   const amounts = calcInvoiceAmounts(
@@ -99,40 +102,33 @@ export async function buildInvoiceDoc(
   );
   if (amounts.total <= 0) throw new InvoiceError('金額が 0 円です');
   return {
-    settings,
-    doc: {
-      invoice_no: no,
-      issued_on: input.issued_on,
-      due_on: dueDate(input.issued_on, settings.payment_days, settings.payment_end_of_month),
-      transaction_on: schedule.occurred_on,
-      bill_to_name: input.bill_to_name.trim(),
-      bill_to_address: input.bill_to_address?.trim() || null,
-      items: items.map((i) => ({ label: i.label.trim(), amount: Math.round(i.amount) })),
-      ...amounts,
-      tax_rate: settings.tax_rate,
-      tax_mode: settings.tax_mode,
-      issuer: settings,
-      // この請求書だけの備考があればそれを、無ければ設定の備考を出す
-      note: input.note?.trim() || settings.note.trim() || null,
-    },
+    invoice_no: no,
+    issued_on: input.issued_on,
+    due_on: dueDate(input.issued_on, settings.payment_days, settings.payment_end_of_month),
+    transaction_on: transactionOn,
+    bill_to_name: input.bill_to_name.trim(),
+    bill_to_address: input.bill_to_address?.trim() || null,
+    items: items.map((i) => ({ label: i.label.trim(), amount: Math.round(i.amount) })),
+    ...amounts,
+    tax_rate: settings.tax_rate,
+    tax_mode: settings.tax_mode,
+    issuer: settings,
+    // この請求書だけの備考があればそれを、無ければ設定の備考を出す
+    note: input.note?.trim() || settings.note.trim() || null,
   };
 }
 
-async function nextInvoiceNo(prefix: string, issuedOn: string): Promise<string> {
+async function nextInvoiceNo(issuer: Issuer, issuedOn: string): Promise<string> {
   const supabase = createServiceRoleClient();
+  const prefix = issuer.settings.number_prefix;
   const head = invoiceNo(prefix, issuedOn, 0).replace(/000$/, '');
-  const { data } = await supabase.from('invoices').select('invoice_no').like('invoice_no', `${head}%`);
+  let q = supabase.from('invoices').select('invoice_no').like('invoice_no', `${head}%`);
+  q = issuer.vendorId ? q.eq('issuer_vendor_id', issuer.vendorId) : q.is('issuer_vendor_id', null);
+  const { data } = await q;
   const used = (data ?? [])
     .map((r) => Number(String(r.invoice_no).slice(head.length)))
     .filter((n) => Number.isFinite(n));
   return invoiceNo(prefix, issuedOn, (used.length ? Math.max(...used) : 0) + 1);
-}
-
-/** プレビュー用の PDF（番号は「プレビュー」） */
-export async function previewInvoicePdf(scheduleId: string, input: InvoiceInput): Promise<Buffer> {
-  const schedule = await loadSchedule(scheduleId);
-  const { doc } = await buildInvoiceDoc(schedule, input, '（プレビュー）');
-  return renderPdf(invoicePdfHtml(doc));
 }
 
 async function loadSchedule(id: string): Promise<BillingSchedule> {
@@ -142,29 +138,39 @@ async function loadSchedule(id: string): Promise<BillingSchedule> {
   return data as BillingSchedule;
 }
 
-/**
- * 請求書を作る。前に作ったものがあれば無効にして作り直す。
- * 請求予定の発行日が空なら発行日を入れ、「請求書発行」のチェックを完了にする。
- */
-export async function createInvoice(scheduleId: string, input: InvoiceInput, actor: Actor): Promise<InvoiceRecord> {
-  const supabase = createServiceRoleClient();
-  const schedule = await loadSchedule(scheduleId);
-  const settings = await getInvoiceSettings();
+/** プレビュー用の PDF（番号は「プレビュー」） */
+export async function previewPdf(issuer: Issuer, transactionOn: string, input: InvoiceInput): Promise<Buffer> {
+  return renderPdf(invoicePdfHtml(buildInvoiceDoc(issuer, transactionOn, input, '（プレビュー）')));
+}
 
+/**
+ * 請求書を作って保存する（番号・PDF・記録）。voidScope に当てはまる前の請求書は無効にする。
+ */
+export async function issueInvoice(opts: {
+  kind: 'fee' | 'vendor_to_client';
+  issuer: Issuer;
+  applicationId: string;
+  scheduleId: string | null;
+  transactionOn: string;
+  input: InvoiceInput;
+}): Promise<InvoiceRecord> {
+  const supabase = createServiceRoleClient();
   let lastError: string | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const no = await nextInvoiceNo(settings.number_prefix, input.issued_on);
-    const { doc } = await buildInvoiceDoc(schedule, input, no);
+    const no = await nextInvoiceNo(opts.issuer, opts.input.issued_on);
+    const doc = buildInvoiceDoc(opts.issuer, opts.transactionOn, opts.input, no);
     const pdf = await renderPdf(invoicePdfHtml(doc));
-    const path = `invoices/${schedule.application_id}/${no}.pdf`;
+    const path = `invoices/${opts.applicationId}/${opts.issuer.vendorId ?? 'self'}-${no}.pdf`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: 'application/pdf', upsert: true });
     if (upErr) throw new Error(`PDF の保存に失敗しました: ${upErr.message}`);
 
     const { data, error } = await supabase
       .from('invoices')
       .insert({
-        billing_schedule_id: schedule.id,
-        application_id: schedule.application_id,
+        kind: opts.kind,
+        issuer_vendor_id: opts.issuer.vendorId,
+        billing_schedule_id: opts.scheduleId,
+        application_id: opts.applicationId,
         invoice_no: doc.invoice_no,
         issued_on: doc.issued_on,
         due_on: doc.due_on,
@@ -192,30 +198,53 @@ export async function createInvoice(scheduleId: string, input: InvoiceInput, act
       throw new Error(error.message);
     }
     const invoice = data as InvoiceRecord;
-
-    // 前の請求書は無効にする
+    // 前の請求書は無効にする（同じ案件・同じ種類）
     await supabase
       .from('invoices')
       .update({ voided_at: new Date().toISOString() })
-      .eq('billing_schedule_id', schedule.id)
+      .eq('application_id', opts.applicationId)
+      .eq('kind', opts.kind)
       .is('voided_at', null)
       .neq('id', invoice.id);
-
-    const update: Partial<BillingSchedule> = {
-      invoice_external_id: invoice.invoice_no,
-      invoice_url: `/api/admin/invoices/${invoice.id}/pdf`,
-      updated_at: new Date().toISOString(),
-    };
-    if (!schedule.invoice_issued_on) update.invoice_issued_on = invoice.issued_on;
-    const { data: after } = await supabase.from('billing_schedules').update(update).eq('id', schedule.id).select().single();
-    await addHistory(schedule.application_id, '請求書', null, `${invoice.invoice_no}（${invoice.total.toLocaleString()}円）`, actor);
-    if (after) {
-      await addHistory(schedule.application_id, '請求書発行日', schedule.invoice_issued_on, (after as BillingSchedule).invoice_issued_on, actor);
-      await syncBillingChecks(schedule.application_id, schedule, after as BillingSchedule, actor);
-    }
     return invoice;
   }
   throw new Error(`請求書番号を決められませんでした: ${lastError}`);
+}
+
+/** 自社のフィーの請求書（請求予定から）。宛先はふつうベンダー */
+export async function previewFeeInvoicePdf(scheduleId: string, input: InvoiceInput): Promise<Buffer> {
+  const schedule = await loadSchedule(scheduleId);
+  return previewPdf(await selfIssuer(), schedule.occurred_on, input);
+}
+
+/**
+ * 自社のフィーの請求書を作る。前に作ったものがあれば無効にして作り直す。
+ * 請求予定の発行日が空なら発行日を入れ、「請求書発行」のチェックを完了にする。
+ */
+export async function createInvoice(scheduleId: string, input: InvoiceInput, actor: Actor): Promise<InvoiceRecord> {
+  const supabase = createServiceRoleClient();
+  const schedule = await loadSchedule(scheduleId);
+  const invoice = await issueInvoice({
+    kind: 'fee',
+    issuer: await selfIssuer(),
+    applicationId: schedule.application_id,
+    scheduleId: schedule.id,
+    transactionOn: schedule.occurred_on,
+    input,
+  });
+  const update: Partial<BillingSchedule> = {
+    invoice_external_id: invoice.invoice_no,
+    invoice_url: `/api/admin/invoices/${invoice.id}/pdf`,
+    updated_at: new Date().toISOString(),
+  };
+  if (!schedule.invoice_issued_on) update.invoice_issued_on = invoice.issued_on;
+  const { data: after } = await supabase.from('billing_schedules').update(update).eq('id', schedule.id).select().single();
+  await addHistory(schedule.application_id, '請求書', null, `${invoice.invoice_no}（${invoice.total.toLocaleString()}円）`, actor);
+  if (after) {
+    await addHistory(schedule.application_id, '請求書発行日', schedule.invoice_issued_on, (after as BillingSchedule).invoice_issued_on, actor);
+    await syncBillingChecks(schedule.application_id, schedule, after as BillingSchedule, actor);
+  }
+  return invoice;
 }
 
 /** 保存した PDF の期限付き URL（10 分）。ブラウザでそのまま開く */

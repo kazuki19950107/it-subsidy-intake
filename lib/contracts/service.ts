@@ -12,6 +12,16 @@ import { noTimestamp, type TimestampProvider } from './timestamp';
 
 export const AGENT_NAME = process.env.AGENT_COMPANY_NAME || 'Assemble';
 
+/** 画面や文言で使う呼び名（同意書 / 契約書） */
+export function contractLabel(c: Pick<Contract, 'kind'>): string {
+  return (c.kind ?? 'consent') === 'vendor_client' ? '契約書' : '同意書';
+}
+
+/** PDF の「乙」 */
+export function partyBName(c: Pick<Contract, 'party_b_name'>): string {
+  return c.party_b_name || AGENT_NAME;
+}
+
 function feeDescription(tool: Tool | null): string {
   if (!tool) return '別途定める報酬を';
   const amount =
@@ -51,7 +61,11 @@ export async function createContractForCase(applicationId: string): Promise<Cont
   const app = appRow as Application | null;
   if (!app) throw new Error('案件が見つかりません');
 
-  const { data: existing } = await supabase.from('contracts').select('id, status').eq('application_id', applicationId);
+  const { data: existing } = await supabase
+    .from('contracts')
+    .select('id, status')
+    .eq('application_id', applicationId)
+    .eq('kind', 'consent');
   if ((existing ?? []).some((c) => c.status === 'signed')) return null;
   const openIds = (existing ?? []).filter((c) => c.status !== 'void').map((c) => c.id as string);
   if (openIds.length > 0) await supabase.from('contracts').update({ status: 'void' }).in('id', openIds);
@@ -105,8 +119,9 @@ export async function signContract(
   input: SignInput,
   timestamp: TimestampProvider = noTimestamp,
 ): Promise<Contract> {
-  if (contract.status === 'signed') throw new Error('この同意書は締結済みです');
-  if (contract.status === 'void') throw new Error('この同意書は無効になっています。担当者にお問い合わせください');
+  const label = contractLabel(contract);
+  if (contract.status === 'signed') throw new Error(`この${label}は締結済みです`);
+  if (contract.status === 'void') throw new Error(`この${label}は無効になっています。担当者にお問い合わせください`);
   const supabase = createServiceRoleClient();
   const signedAt = new Date().toISOString();
 
@@ -123,7 +138,7 @@ export async function signContract(
     signer_user_agent: input.userAgent,
   };
 
-  const pdf = await renderPdf(contractPdfHtml(signed, { agentName: AGENT_NAME }));
+  const pdf = await renderPdf(contractPdfHtml(signed, { agentName: partyBName(contract) }));
   const hash = sha256(pdf);
   const path = `contracts/${contract.application_id}/${contract.id}.pdf`;
   const { error: upErr } = await supabase.storage
@@ -157,8 +172,11 @@ export async function signContract(
     .single();
   if (error || !data) throw new Error(`締結の記録に失敗しました: ${error?.message ?? ''}`);
 
-  await addHistory(contract.application_id, 'contract', contract.status, 'signed', { type: 'customer', name: input.signerName });
-  await reachMilestone(contract.application_id, 'contract_signed', { type: 'customer', name: input.signerName }, signedAt);
+  await addHistory(contract.application_id, (contract.kind ?? 'consent') === 'consent' ? 'contract' : 'vendor_contract', contract.status, 'signed', { type: 'customer', name: input.signerName });
+  // 自社との同意書のときだけ「同意書の締結」の節目にする（ベンダーとの契約書では段階を動かさない）
+  if ((contract.kind ?? 'consent') === 'consent') {
+    await reachMilestone(contract.application_id, 'contract_signed', { type: 'customer', name: input.signerName }, signedAt);
+  }
   return data as Contract;
 }
 

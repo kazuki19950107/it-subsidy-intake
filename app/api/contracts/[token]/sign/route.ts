@@ -22,7 +22,7 @@ const schema = z
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const contract = await getContractByToken(token);
-  if (!contract) return NextResponse.json({ error: '同意書が見つかりません' }, { status: 404 });
+  if (!contract) return NextResponse.json({ error: '書類が見つかりません' }, { status: 404 });
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
   const b = parsed.data;

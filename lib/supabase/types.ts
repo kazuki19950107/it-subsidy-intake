@@ -229,6 +229,11 @@ export interface Contract {
   timestamp_authority: string | null;
   timestamped_at: string | null;
   created_at: string;
+  /** consent: 自社との同意書 / vendor_client: ベンダーとお客様の契約書 */
+  kind?: 'consent' | 'vendor_client';
+  vendor_id?: string | null;
+  /** PDF の「乙」。空なら自社名 */
+  party_b_name?: string | null;
 }
 
 export interface BillingSchedule {
@@ -260,6 +265,19 @@ export interface VendorContact {
   active: boolean;
   created_at: string;
   updated_at: string;
+  /** ↓ ベンダーからお客様への請求書・契約書に載せる発行元の情報 */
+  legal_name?: string | null;
+  representative_name?: string | null;
+  postal?: string | null;
+  address?: string | null;
+  registration_no?: string | null;
+  bank_info?: string | null;
+  invoice_note?: string | null;
+  payment_days?: number;
+  payment_end_of_month?: boolean;
+  invoice_prefix?: string;
+  contract_title?: string | null;
+  contract_template?: string | null;
 }
 
 /** 画面・API に渡す形。暗号化パスワードは除外し、設定有無のみ持つ */

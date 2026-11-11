@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { BillingRow } from './BillingTable';
 
 const INPUT = 'h-9 w-full rounded border border-rule bg-white px-2 text-sm';
 
@@ -14,26 +13,45 @@ function today(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** 請求書を作る（宛名・発行日・品目を確かめてから作る。プレビューもできる） */
-export function InvoiceDialog({
-  row,
-  itemLabel,
-  missingSettings,
-  open,
-  onClose,
-}: {
-  row: BillingRow;
-  itemLabel: string;
+export type InvoiceDialogProps = {
+  /** 作る API（?preview=1 を付けるとプレビュー） */
+  endpoint: string;
+  title: string;
+  /** 発行元（PDF の右上に出る会社） */
+  issuerName: string;
+  initial: { billTo: string; address: string | null; items: Array<{ label: string; amount: number | null }> };
+  /** 作り直しのとき、前の請求書番号 */
+  replacing: string | null;
   missingSettings: string[];
+  settingsHref: string;
+  settingsLabel: string;
+  /** 金額の説明（例: 税別・10%を上乗せ） */
+  amountHint: string;
   open: boolean;
   onClose: () => void;
-}) {
+};
+
+/** 請求書を作る（宛名・発行日・品目を確かめてから作る。プレビューもできる） */
+export function InvoiceDialog({
+  endpoint,
+  title,
+  issuerName,
+  initial,
+  replacing,
+  missingSettings,
+  settingsHref,
+  settingsLabel,
+  amountHint,
+  open,
+  onClose,
+}: InvoiceDialogProps) {
   const router = useRouter();
-  const detail = [row.round != null ? `${row.round}次` : '', row.tool_name ?? row.tool_code ?? ''].filter(Boolean).join(' ');
-  const [billTo, setBillTo] = useState(`${row.company_name ?? row.case_name} 御中`);
-  const [address, setAddress] = useState(row.company_address ?? '');
+  const [billTo, setBillTo] = useState(initial.billTo);
+  const [address, setAddress] = useState(initial.address ?? '');
   const [issuedOn, setIssuedOn] = useState(today());
-  const [items, setItems] = useState([{ label: detail ? `${itemLabel}（${detail}）` : itemLabel, amount: row.amount != null ? String(row.amount) : '' }]);
+  const [items, setItems] = useState(
+    (initial.items.length ? initial.items : [{ label: '', amount: null }]).map((i) => ({ label: i.label, amount: i.amount != null ? String(i.amount) : '' })),
+  );
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<'preview' | 'create' | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -50,7 +68,7 @@ export function InvoiceDialog({
     // ポップアップがブロックされないよう、先にタブを開いておく
     const win = window.open('', '_blank');
     try {
-      const res = await fetch(`/api/admin/billing/${row.id}/invoice?preview=1`, {
+      const res = await fetch(`${endpoint}?preview=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body()),
@@ -74,7 +92,7 @@ export function InvoiceDialog({
     setErr(null);
     setBusy('create');
     try {
-      const res = await fetch(`/api/admin/billing/${row.id}/invoice`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body()),
@@ -95,16 +113,19 @@ export function InvoiceDialog({
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>請求書を作る</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {row.invoice ? `前に作った請求書（${row.invoice.invoice_no}）は無効になり、新しい番号で作り直します。` : '内容を確かめて「作る」を押すと、PDF ができて発行日が入ります。'}
+            発行元: {issuerName}。
+            {replacing ? `前に作った請求書（${replacing}）は無効になり、新しい番号で作り直します。` : '内容を確かめて「作る」を押すと、PDF ができます。'}
           </DialogDescription>
         </DialogHeader>
 
         {missingSettings.length > 0 ? (
           <div className="text-sm text-accent space-y-2">
-            <p>先に設定の「請求書」で次を入れてください: {missingSettings.join('・')}</p>
-            <Link href="/admin/settings#invoice" className="underline">
+            <p>
+              先に{settingsLabel}で次を入れてください: {missingSettings.join('・')}
+            </p>
+            <Link href={settingsHref} className="underline">
               設定を開く →
             </Link>
           </div>
@@ -123,7 +144,7 @@ export function InvoiceDialog({
               <input type="date" className={INPUT} value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} />
             </label>
             <div className="space-y-1">
-              <div className="text-xs text-mute">品目と金額（設定の税別・税込のまま）</div>
+              <div className="text-xs text-mute">品目と金額（{amountHint}）</div>
               {items.map((it, i) => (
                 <div key={i} className="flex gap-2">
                   <input

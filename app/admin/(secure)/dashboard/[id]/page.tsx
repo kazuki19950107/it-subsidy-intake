@@ -30,6 +30,8 @@ import type { BillingSchedule, Contract, LineGroup, StatusHistory } from '@/lib/
 import { CaseInfoEditor } from './CaseInfoEditor';
 import { ChecksPanel, type CheckRow } from './ChecksPanel';
 import { ContractPanel } from './ContractPanel';
+import { VendorDocsPanel } from './VendorDocsPanel';
+import { vendorDocsSummary } from '@/lib/vendorDocs/service';
 import { BillingPanel, HistoryPanel, LineGroupsPanel } from './CaseSidePanels';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +58,7 @@ export default async function ApplicationDetailPage({
     .order('uploaded_at', { ascending: true });
   const documents = (docs ?? []) as Document[];
 
-  const [vendors, currentVendor, portal, options, rules, checksRes, contractRes, groupsRes, historyRes, billingRes] =
+  const [vendors, currentVendor, portal, options, rules, checksRes, contractRes, groupsRes, historyRes, billingRes, vendorDocs] =
     await Promise.all([
       listActiveVendors(),
       application.vendor_contact_id ? getVendor(application.vendor_contact_id) : Promise.resolve(null),
@@ -71,6 +73,7 @@ export default async function ApplicationDetailPage({
         .from('contracts')
         .select('*')
         .eq('application_id', id)
+        .eq('kind', 'consent')
         .neq('status', 'void')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -83,6 +86,7 @@ export default async function ApplicationDetailPage({
         .order('created_at', { ascending: false })
         .limit(100),
       supabase.from('billing_schedules').select('*').eq('application_id', id).maybeSingle(),
+      vendorDocsSummary(id),
     ]);
   const checks: CheckRow[] = ((checksRes.data ?? []) as unknown as Array<{
     id: string;
@@ -216,6 +220,12 @@ export default async function ApplicationDetailPage({
         />
         <LineGroupsPanel groups={(groupsRes.data ?? []) as LineGroup[]} />
         <BillingPanel schedule={(billingRes.data as BillingSchedule | null) ?? null} />
+        <VendorDocsPanel
+          applicationId={application.id}
+          summary={vendorDocs}
+          client={{ company_name: application.company_name || application.applicant_name, address: application.address }}
+          contractUrl={vendorDocs.contract ? contractUrl(vendorDocs.contract.token) : null}
+        />
       </div>
 
       <ApplyUrlBlock token={application.token} />

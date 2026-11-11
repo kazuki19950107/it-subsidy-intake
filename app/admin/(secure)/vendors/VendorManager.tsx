@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
 import { SortButton } from '@/components/ui/SortableHead';
-import { Building2, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Building2, FileText, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { VendorDocSettingsDialog } from './VendorDocSettingsDialog';
 import { PortalPasswordReveal } from '@/components/admin/PortalPasswordReveal';
 import { PortalSyncButton } from '@/components/admin/PortalSyncButton';
 import { Badge } from '@/components/ui/badge';
@@ -84,12 +85,14 @@ function matches(v: VendorWithCount, q: string): boolean {
     .some((f) => String(f).toLowerCase().includes(needle));
 }
 
-export function VendorManager({ initialVendors }: { initialVendors: VendorWithCount[] }) {
+export function VendorManager({ initialVendors, openDocsFor }: { initialVendors: VendorWithCount[]; openDocsFor?: string | null }) {
   const router = useRouter();
   const { toast } = useToast();
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(true);
   const [editing, setEditing] = useState<VendorWithCount | 'new' | null>(null);
+  // 「請求書・契約書の設定」（案件の詳細から ?docs=<id> で開ける）
+  const [docsFor, setDocsFor] = useState<VendorWithCount | null>(() => initialVendors.find((v) => v.id === openDocsFor) ?? null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const filtered = useMemo(
@@ -252,6 +255,7 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
                           vendor={v}
                           busy={busyId === v.id}
                           onEdit={() => setEditing(v)}
+                          onDocs={() => setDocsFor(v)}
                           onToggle={() => toggleActive(v)}
                           onDelete={() => remove(v)}
                         />
@@ -300,6 +304,7 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
                       vendor={v}
                       busy={busyId === v.id}
                       onEdit={() => setEditing(v)}
+                      onDocs={() => setDocsFor(v)}
                       onToggle={() => toggleActive(v)}
                       onDelete={() => remove(v)}
                     />
@@ -316,6 +321,7 @@ export function VendorManager({ initialVendors }: { initialVendors: VendorWithCo
         target={editing}
         onClose={() => setEditing(null)}
       />
+      {docsFor && <VendorDocSettingsDialog key={docsFor.id} vendor={docsFor} onClose={() => setDocsFor(null)} />}
     </div>
   );
 }
@@ -350,12 +356,14 @@ function RowActions({
   vendor,
   busy,
   onEdit,
+  onDocs,
   onToggle,
   onDelete,
 }: {
   vendor: VendorWithCount;
   busy: boolean;
   onEdit: () => void;
+  onDocs: () => void;
   onToggle: () => void;
   onDelete: () => void;
 }) {
@@ -388,6 +396,10 @@ function RowActions({
     <div className="flex items-center gap-1 justify-end">
       <Button size="sm" variant="ghost" onClick={onEdit} disabled={busy} aria-label="編集">
         <Pencil className="w-4 h-4" />
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onDocs} disabled={busy} className="text-xs" title="お客様へ出す請求書・契約書の発行元の情報">
+        <FileText className="w-4 h-4" />
+        請求書・契約書
       </Button>
       <Button size="sm" variant="ghost" onClick={onToggle} disabled={busy} className="text-xs">
         {vendor.active ? '無効化' : '有効化'}

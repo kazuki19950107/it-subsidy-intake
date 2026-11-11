@@ -709,10 +709,26 @@ export default async function GuidePage() {
           <L href="/admin/billing">売上・請求</L> では、ツール別・回次別・月別の売上見込みを確認できます。
         </Note>
 
-        <div className="text-xs font-semibold text-mute pt-2">請求書を作る</div>
+        <div className="text-xs font-semibold text-mute pt-2">請求書は2種類</div>
+        <div className="grid gap-2 md:grid-cols-2 text-sm">
+          <div className="rounded-md border border-rule p-3">
+            <div className="font-semibold text-ink">① フィーの請求書（自社 → ベンダー）</div>
+            <div className="text-xs mt-1">
+              発行元は設定の「請求書」の会社。宛先は案件のベンダー。<L href="/admin/billing">売上・請求</L> の請求予定から作ります。
+            </div>
+          </div>
+          <div className="rounded-md border border-rule p-3">
+            <div className="font-semibold text-ink">② ベンダーの請求書と契約書（ベンダー → お客様）</div>
+            <div className="text-xs mt-1">
+              採択されたら作ります。発行元は案件のベンダー。品目はポータルの IT ツールと金額。案件の詳細の「ベンダーからお客様への書類」から作ります。
+            </div>
+          </div>
+        </div>
+
+        <div className="text-xs font-semibold text-mute pt-2">① フィーの請求書を作る</div>
         <ul className="text-sm list-disc pl-5 space-y-1">
           <li>
-            <L href="/admin/billing">売上・請求</L> の請求予定の行で「請求書を作る」を押し、宛名・発行日・品目と金額を確かめて「作る」。PDF が開き、発行日が入って「請求書発行」のチェックが完了になります。「プレビュー」で先に見た目を確かめられます。
+            <L href="/admin/billing">売上・請求</L> の請求予定の行で「請求書を作る」を押し、宛名（案件のベンダー）・発行日・品目と金額を確かめて「作る」。PDF が開き、発行日が入って「請求書発行」のチェックが完了になります。「プレビュー」で先に見た目を確かめられます。
           </li>
           <li>金額や宛名を直したいときは「請求書を作り直す」。前の請求書は無効になり、新しい番号で作られます（前の番号は使い回しません）。</li>
           <li>請求書番号は「頭-年月-連番」（例: {invoiceSettings.number_prefix ? `${invoiceSettings.number_prefix}-` : ''}202611-001）です。</li>
@@ -736,6 +752,28 @@ export default async function GuidePage() {
           )}
           <L href="/admin/settings#invoice">設定の「請求書」で変える →</L>
         </div>
+
+        <div className="text-xs font-semibold text-mute pt-2">② 採択後：ベンダーからお客様への請求書と契約書</div>
+        <FlowRow
+          items={[
+            { title: 'ベンダーの情報を入れる', sub: 'ベンダー →「請求書・契約書」（最初に1回）', who: 'staff' },
+            { title: 'ポータルの内容を読む', sub: '紐付けた案件のITツール・金額を毎朝', who: 'auto' },
+            { title: '請求書・契約書を作る', sub: '案件の詳細の「ベンダーからお客様への書類」', who: 'staff' },
+            { title: 'お客様が署名', sub: '署名URL、または印刷して紙で', who: 'customer', tone: 'border-teal bg-teal-light/40' },
+          ]}
+        />
+        <ul className="text-sm list-disc pl-5 space-y-1">
+          <li>
+            <L href="/admin/vendors">ベンダー</L> の「請求書・契約書」で、そのベンダーの正式な会社名・代表者・住所・登録番号・振込先・支払期限と、契約書の文面を入れます（ベンダーごとに違ってよい）。
+          </li>
+          <li>
+            請求書の品目は、ポータルの「交付申請 確認」にある IT ツールごとの小計（税抜）です。消費税10%を足した額が請求額になります。品目や金額は作る前に直せます。
+          </li>
+          <li>
+            契約書は「契約書を作る」で署名URLができます。お客様が開いて署名すると締結済みのPDFが残ります。紙で交わすときは「印刷用のPDF」を印刷してください。
+          </li>
+          <li>契約書の文面は、今は仮の文面です。ベンダーの「請求書・契約書」で本当のひな形に差し替えてください（会社名・ツール・金額などは {'{{...}}'} で差し込めます）。</li>
+        </ul>
       </Section>
 
       {/* ───────── 毎日 ───────── */}

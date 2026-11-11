@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { InvoiceDialog } from './InvoiceDialog';
+import { InvoiceDialog } from '@/components/admin/InvoiceDialog';
 import type { BillingSchedule } from '@/lib/supabase/types';
 import { BILLING_TIMING_LABELS, type BillingTiming } from '@/lib/cases/constants';
 import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
@@ -27,6 +27,9 @@ export type BillingRow = BillingSchedule & {
   round: number | null;
   company_name: string | null;
   company_address: string | null;
+  /** 案件のベンダー（フィーの請求書の宛先） */
+  vendor_name: string | null;
+  vendor_address: string | null;
   /** 作った請求書（無効にしたものは除く） */
   invoice: { id: string; invoice_no: string; issued_on: string; total: number } | null;
 };
@@ -37,7 +40,9 @@ const FILTERS = [
   { value: 'all', label: 'すべて' },
 ] as const;
 
-function Row({ row, itemLabel, missingSettings }: { row: BillingRow; itemLabel: string; missingSettings: string[] }) {
+export type FeeInvoiceConfig = { issuerName: string; itemLabel: string; missingSettings: string[]; amountHint: string };
+
+function Row({ row, config }: { row: BillingRow; config: FeeInvoiceConfig }) {
   const router = useRouter();
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [amount, setAmount] = useState(row.amount != null ? String(row.amount) : '');
@@ -103,6 +108,7 @@ function Row({ row, itemLabel, missingSettings }: { row: BillingRow; itemLabel: 
           ) : null}
           <button type="button" className="text-[11px] text-teal hover:underline font-semibold" disabled={busy} onClick={() => setInvoiceOpen(true)}>
             {row.invoice ? '請求書を作り直す' : '請求書を作る'}
+            {row.vendor_name ? <span className="font-normal text-mute">（{row.vendor_name}あて）</span> : null}
           </button>
           {!row.invoice_issued_on && (
             <button type="button" className="text-[11px] text-mute hover:underline" disabled={busy} onClick={() => save({ issue: true })}>
@@ -111,7 +117,24 @@ function Row({ row, itemLabel, missingSettings }: { row: BillingRow; itemLabel: 
           )}
         </div>
         {invoiceOpen && (
-          <InvoiceDialog row={row} itemLabel={itemLabel} missingSettings={missingSettings} open={invoiceOpen} onClose={() => setInvoiceOpen(false)} />
+          <InvoiceDialog
+            endpoint={`/api/admin/billing/${row.id}/invoice`}
+            title="フィーの請求書を作る"
+            issuerName={config.issuerName || '（設定の請求元）'}
+            initial={{
+              // 宛先はふつう案件のベンダー。ベンダーが無いときはお客様
+              billTo: `${row.vendor_name ?? row.company_name ?? row.case_name} 御中`,
+              address: row.vendor_name ? row.vendor_address : row.company_address,
+              items: [{ label: `${config.itemLabel}（${feeItemDetail(row)}）`, amount: row.amount }],
+            }}
+            replacing={row.invoice?.invoice_no ?? null}
+            missingSettings={config.missingSettings}
+            settingsHref="/admin/settings#invoice"
+            settingsLabel="設定の「請求書」"
+            amountHint={config.amountHint}
+            open={invoiceOpen}
+            onClose={() => setInvoiceOpen(false)}
+          />
         )}
       </td>
       <td className="py-2 pr-2">
@@ -130,15 +153,14 @@ function Row({ row, itemLabel, missingSettings }: { row: BillingRow; itemLabel: 
   );
 }
 
-export function BillingTable({
-  rows,
-  itemLabel,
-  missingSettings,
-}: {
-  rows: BillingRow[];
-  itemLabel: string;
-  missingSettings: string[];
-}) {
+/** フィーの品目に添える案件の説明（会社名・回次・ツール） */
+function feeItemDetail(row: BillingRow): string {
+  return [row.company_name ?? row.case_name, row.round != null ? `${row.round}次` : '', row.tool_name ?? row.tool_code ?? '']
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function BillingTable({ rows, config }: { rows: BillingRow[]; config: FeeInvoiceConfig }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['value']>('open');
   const filtered = rows.filter((r) => (filter === 'open' ? !r.paid_on : filter === 'uninvoiced' ? !r.invoice_issued_on : true));
   const { sorted: shown, sort, toggle } = useTableSort('billing', filtered, COLUMNS);
@@ -178,7 +200,7 @@ export function BillingTable({
             </thead>
             <tbody>
               {shown.map((r) => (
-                <Row key={`${r.id}-${r.updated_at}`} row={r} itemLabel={itemLabel} missingSettings={missingSettings} />
+                <Row key={`${r.id}-${r.updated_at}`} row={r} config={config} />
               ))}
             </tbody>
           </table>

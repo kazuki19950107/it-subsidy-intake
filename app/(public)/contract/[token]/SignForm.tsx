@@ -73,7 +73,7 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
   );
 }
 
-export function SignForm({ token }: { token: string }) {
+export function SignForm({ token, label = '同意書' }: { token: string; label?: string }) {
   const router = useRouter();
   const [method, setMethod] = useState<'typed' | 'drawn'>('typed');
   const [name, setName] = useState('');
@@ -151,7 +151,7 @@ export function SignForm({ token }: { token: string }) {
       </div>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-1 accent-teal w-4 h-4" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-        <span>上記の同意書の内容を確認し、同意します。署名日時・IPアドレスなどの記録が保存されることを了承します。</span>
+        <span>上記の{label}の内容を確認し、同意します。署名日時・IPアドレスなどの記録が保存されることを了承します。</span>
       </label>
       <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
         {busy ? '締結しています...' : '署名して締結する'}
