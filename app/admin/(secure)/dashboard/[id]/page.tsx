@@ -241,9 +241,11 @@ export default async function ApplicationDetailPage({
                   signed_pdf_sha256: contract.signed_pdf_sha256,
                   viewed_at: contract.viewed_at,
                   created_at: contract.created_at,
+                  addressee: contract.party_b_name ?? null,
                 }
               : null
           }
+          vendorName={currentVendor ? currentVendor.legal_name || currentVendor.name : null}
         />
         </div>
         <div id="line-groups" className="scroll-mt-20">
@@ -276,11 +278,13 @@ export default async function ApplicationDetailPage({
         initialExpiresAt={application.share_token_expires_at}
       />
 
-      <VendorSelector
-        applicationId={application.id}
-        vendors={vendors}
-        current={currentVendor}
-      />
+      <div id="vendor" className="scroll-mt-20">
+        <VendorSelector
+          applicationId={application.id}
+          vendors={vendors}
+          current={currentVendor}
+        />
+      </div>
 
       <AdminMemoEditor
         applicationId={application.id}

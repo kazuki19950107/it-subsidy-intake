@@ -12,6 +12,9 @@ import { noTimestamp, type TimestampProvider } from './timestamp';
 
 export const AGENT_NAME = process.env.AGENT_COMPANY_NAME || 'Assemble';
 
+/** 作れない理由（画面にそのまま出す） */
+export class ContractError extends Error {}
+
 /** 画面や文言で使う呼び名（同意書 / 契約書） */
 export function contractLabel(c: Pick<Contract, 'kind'>): string {
   return (c.kind ?? 'consent') === 'vendor_client' ? '契約書' : '同意書';
@@ -38,12 +41,13 @@ export async function contractVarsFor(app: Application): Promise<ContractVars> {
     const { data } = await supabase.from('tools').select('*').eq('id', app.tool_id).maybeSingle();
     tool = (data as Tool | null) ?? null;
   }
-  // 宛名は案件のベンダー（正式な会社名）。ベンダーが無ければ自社名
-  let addressee = AGENT_NAME;
+  // 宛名（と PDF の「乙」）は案件のベンダー（正式な会社名）。ベンダーが無いときは作らない
+  let addressee = '';
   if (app.vendor_contact_id) {
     const { data: v } = await supabase.from('vendor_contacts').select('name, legal_name').eq('id', app.vendor_contact_id).maybeSingle();
     if (v) addressee = (v.legal_name as string | null) || (v.name as string);
   }
+  if (!addressee) throw new ContractError('同意書の宛名になるベンダーを、案件の情報で選んでから作ってください');
   const now = new Date();
   return {
     addressee,

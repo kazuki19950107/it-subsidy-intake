@@ -67,7 +67,7 @@ export async function createCase(
       const c = await createContractForCase(id);
       contractToken = c?.token ?? null;
     } catch {
-      // 同意書の作成に失敗しても案件の登録は残す（詳細画面から作り直せる）
+      // 同意書の作成に失敗しても案件の登録は残す（ベンダー未設定など。詳細画面から作れる）
     }
   }
   return { id, token, contractToken };

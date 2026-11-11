@@ -365,7 +365,7 @@ export default async function GuidePage() {
       >
         <FlowRow
           items={[
-            { title: '案件を登録', sub: '会社名・法人番号・代表者・所在地・ツール・回次・担当', who: 'staff' },
+            { title: '案件を登録', sub: '会社名・代表者・所在地・ツール・回次・ベンダー（同意書の宛名）', who: 'staff' },
             { title: 'URLを2つ送る', sub: '同意書の署名URLと、書類の申請URL（期限なし）', who: 'staff' },
             { title: '同意書に署名', sub: '氏名入力か手書き', who: 'customer' },
             { title: '締結', sub: `PDFを保存${toStage('contract_signed') ? `・${toStage('contract_signed')}` : ''}`, who: 'auto', tone: DONE },
@@ -386,7 +386,8 @@ export default async function GuidePage() {
         <More title="くわしく: 同意書で記録するもの・直したいとき">
           <ul className="text-xs space-y-0.5 list-disc pl-4">
             <li>締結のとき: 署名日時・IPアドレス・署名者の氏名／役職／メール、締結済みPDFとそのSHA-256、文面の版を記録します。</li>
-            <li>署名前に会社情報を直したいとき: 案件の情報を直して「今の情報で作り直す」→ 新しいURLを送り直します。</li>
+            <li>同意書の宛名（「○○ 御中」）は案件のベンダーの名前です。ベンダーが未設定だと同意書は作れません。</li>
+            <li>署名前に会社情報やベンダーを直したいとき: 案件の情報を直して「今の情報で作り直す」→ 新しいURLを送り直します。</li>
             <li>署名後は作り直せません（締結済みの内容が正です）。</li>
             <li>会社名と法人番号は提出書類との照合にも使います。正しく入れておくと、別の会社の書類が出されたときに自動で不備になります。</li>
           </ul>

@@ -85,9 +85,9 @@ export function caseSteps(s: NextActionInput): Step[] {
       label: '同意書を送る',
       done: s.consent !== 'none',
       who: 'staff',
-      action: '同意書を作って、署名URLをお客様に送る',
-      target: '#consent',
-      targetLabel: '同意書へ',
+      action: s.vendorSet ? '同意書を作って、署名URLをお客様に送る' : 'ベンダーを選び（同意書の宛名になります）、同意書を作って送る',
+      target: s.vendorSet ? '#consent' : '#vendor',
+      targetLabel: s.vendorSet ? '同意書へ' : 'ベンダーを選ぶ',
     },
     {
       key: 'consent_sign',
@@ -160,9 +160,9 @@ export function caseSteps(s: NextActionInput): Step[] {
       who: 'staff',
       action: s.vendorSet
         ? 'ベンダーとお客様の契約書を作って、署名URLを送る'
-        : '案件の情報でベンダーを選び、契約書を作る',
-      target: s.vendorSet ? '#vendor-docs' : '#case-info',
-      targetLabel: s.vendorSet ? 'ベンダーの書類へ' : '案件の情報へ',
+        : 'ベンダーを選び、契約書を作る',
+      target: s.vendorSet ? '#vendor-docs' : '#vendor',
+      targetLabel: s.vendorSet ? 'ベンダーの書類へ' : 'ベンダーを選ぶ',
     },
     {
       key: 'vendor_invoice',

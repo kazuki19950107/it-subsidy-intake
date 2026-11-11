@@ -18,6 +18,8 @@ export type ContractSummary = {
   signed_pdf_sha256: string | null;
   viewed_at: string | null;
   created_at: string;
+  /** 宛名（作ったときのベンダー名） */
+  addressee?: string | null;
 } | null;
 
 const STATUS: Record<string, { label: string; variant: 'muted' | 'secondary' | 'success' | 'destructive' }> = {
@@ -31,7 +33,16 @@ function jst(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-';
 }
 
-export function ContractPanel({ applicationId, contract }: { applicationId: string; contract: ContractSummary }) {
+export function ContractPanel({
+  applicationId,
+  contract,
+  vendorName,
+}: {
+  applicationId: string;
+  contract: ContractSummary;
+  /** 今の案件のベンダー（同意書の宛名） */
+  vendorName: string | null;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +73,10 @@ export function ContractPanel({ applicationId, contract }: { applicationId: stri
         {error && <div className="text-accent">{error}</div>}
         {!contract ? (
           <div className="space-y-2">
-            <div className="text-mute">まだ作成されていません。会社情報を入れてから作成してください。</div>
+            <div className="text-mute">
+              まだ作成されていません。会社情報と、宛名になるベンダーを入れてから作成してください。
+              {!vendorName && <span className="block text-accent">ベンダーが未設定です（案件の情報で選んでください）。</span>}
+            </div>
             <Button size="sm" onClick={regenerate} disabled={busy}>
               {busy ? '作成中...' : '同意書を作成する'}
             </Button>
@@ -73,6 +87,11 @@ export function ContractPanel({ applicationId, contract }: { applicationId: stri
               <Badge variant={STATUS[contract.status].variant}>{STATUS[contract.status].label}</Badge>
               <span className="text-xs text-mute">作成 {jst(contract.created_at)}</span>
             </div>
+            {contract.status !== 'signed' && vendorName && contract.addressee && contract.addressee !== vendorName && (
+              <div className="text-xs text-accent">
+                宛名（{contract.addressee}）が今のベンダー（{vendorName}）と違います。「今の情報で作り直す」を押してください。
+              </div>
+            )}
             {contract.status !== 'signed' && (
               <div className="flex gap-2">
                 <Input readOnly value={contract.url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />

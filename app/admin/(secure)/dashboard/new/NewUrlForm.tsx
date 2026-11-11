@@ -191,14 +191,14 @@ export function NewUrlForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vendor">利用ベンダー（任意）</Label>
+            <Label htmlFor="vendor">利用ベンダー（同意書の宛名になります）</Label>
             <select
               id="vendor"
               value={vendorId}
               onChange={(e) => setVendorId(e.target.value)}
               className={SELECT_CLASS}
             >
-              <option value="">未設定（後から設定できます）</option>
+              <option value="">未設定（同意書は、ベンダーを選んでから作ります）</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -206,7 +206,7 @@ export function NewUrlForm({
               ))}
             </select>
             <p className="text-xs text-mute">
-              この案件で利用するベンダー。申請者には表示されません。
+              選んだベンダーの名前が、同意書の宛名（「○○ 御中」）になります。未設定で登録すると同意書は作られないので、あとで案件の情報でベンダーを選んでから作ってください。
               {vendors.length === 0 && (
                 <>
                   {' '}
