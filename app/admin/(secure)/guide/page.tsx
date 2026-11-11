@@ -241,7 +241,7 @@ export default async function GuidePage() {
       </section>
 
       {/* ───────── 動画 ───────── */}
-      <More title="動画で見る（押すと開きます）">
+      <More title="動画で見る（約7分・押すと開きます）">
         <video
           className="w-full rounded-lg border border-rule bg-black"
           src="/guide/tsumugi-guide.mp4"

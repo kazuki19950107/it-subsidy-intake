@@ -35,3 +35,7 @@ sample-documents/*
 .claude/
 
 .vercel
+
+# 説明動画の作業ファイル
+scripts/guide-video/work/
+__pycache__/
