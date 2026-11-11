@@ -4,5 +4,8 @@
       "path": "/api/cron/portal-sync",
       "schedule": "0 21 * * *"
     }
+  ],
+  "regions": [
+    "hnd1"
   ]
 }

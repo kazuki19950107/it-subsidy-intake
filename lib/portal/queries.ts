@@ -14,9 +14,20 @@ export type PortalCaseWithVendor = PortalCase & {
   application: Pick<Application, 'id' | 'company_name' | 'applicant_name' | 'status'> | null;
 };
 
-function fiscalYearOf(c: PortalCase): string | null {
-  const fy = (c.raw as { fiscal_year?: unknown } | null)?.fiscal_year;
-  return typeof fy === 'string' && fy !== '' ? fy : null;
+// 一覧では raw（詳細の本文などで大きい）を読まず、必要な年度だけ取り出す
+const LIST_COLUMNS =
+  'id, vendor_contact_id, application_no, applicant_name, prefecture, round, application_type, status, status_updated_on, handler_name, first_seen_at, last_seen_at, fy:raw->>fiscal_year';
+
+type ListRow = Omit<PortalCase, 'raw'> & { fy: string | null };
+
+function fiscalYearOf(c: ListRow): string | null {
+  return typeof c.fy === 'string' && c.fy !== '' ? c.fy : null;
+}
+
+function toCase(c: ListRow): PortalCase {
+  const { fy: _fy, ...rest } = c;
+  void _fy;
+  return { ...rest, raw: null };
 }
 
 /** ポータル案件の全件（ベンダー名と紐づく申請つき） */
@@ -25,7 +36,7 @@ export async function listPortalCases(): Promise<PortalCaseWithVendor[]> {
   const [{ data: cases }, { data: vendors }, { data: apps }] = await Promise.all([
     supabase
       .from('portal_cases')
-      .select('*')
+      .select(LIST_COLUMNS)
       .order('status_updated_on', { ascending: false, nullsFirst: false })
       .order('application_no', { ascending: true }),
     supabase.from('vendor_contacts').select('id, name'),
@@ -42,7 +53,8 @@ export async function listPortalCases(): Promise<PortalCaseWithVendor[]> {
   );
   // 交付申請番号でまとめる。複数ベンダーで取得できた案件は最後に見た方の内容を採用し、取得元は全部残す
   const byNo = new Map<string, PortalCaseWithVendor>();
-  for (const c of (cases ?? []) as PortalCase[]) {
+  for (const row of (cases ?? []) as unknown as ListRow[]) {
+    const c = toCase(row);
     const vName = vendorName.get(c.vendor_contact_id) ?? '不明';
     const existing = byNo.get(c.application_no);
     if (existing) {
@@ -53,7 +65,7 @@ export async function listPortalCases(): Promise<PortalCaseWithVendor[]> {
       if (c.last_seen_at > existing.last_seen_at) {
         Object.assign(existing, c, {
           vendor_name: vName,
-          fiscal_year: fiscalYearOf(c) ?? existing.fiscal_year,
+          fiscal_year: fiscalYearOf(row) ?? existing.fiscal_year,
           source_vendor_ids: existing.source_vendor_ids,
           source_vendor_names: existing.source_vendor_names,
           application: existing.application,
@@ -65,7 +77,7 @@ export async function listPortalCases(): Promise<PortalCaseWithVendor[]> {
     byNo.set(c.application_no, {
       ...c,
       vendor_name: vName,
-      fiscal_year: fiscalYearOf(c),
+      fiscal_year: fiscalYearOf(row),
       source_vendor_ids: [c.vendor_contact_id],
       source_vendor_names: [vName],
       application: a
@@ -82,10 +94,11 @@ export async function portalInfoForApplication(app: Application): Promise<{
   candidates: PortalCase[];
 }> {
   const supabase = createServiceRoleClient();
-  const { data } = await supabase.from('portal_cases').select('*');
-  const all = (data ?? []) as PortalCase[];
+  // 候補探しには raw は要らないので軽く読み、紐付いた1件だけ raw（申請内容）も読む
+  const { data } = await supabase.from('portal_cases').select(LIST_COLUMNS);
+  const all = ((data ?? []) as unknown as ListRow[]).map(toCase);
 
-  const matched = app.portal_application_no
+  const matchedLite = app.portal_application_no
     ? // 同じ番号が複数ベンダーにある場合は申請のベンダー分を優先
       (all.find(
         (c) => c.application_no === app.portal_application_no && c.vendor_contact_id === app.vendor_contact_id,
@@ -93,6 +106,11 @@ export async function portalInfoForApplication(app: Application): Promise<{
       all.find((c) => c.application_no === app.portal_application_no) ??
       null)
     : null;
+  let matched: PortalCase | null = matchedLite;
+  if (matchedLite) {
+    const { data: r } = await supabase.from('portal_cases').select('raw').eq('id', matchedLite.id).maybeSingle();
+    matched = { ...matchedLite, raw: (r?.raw as PortalCase['raw']) ?? null };
+  }
 
   const names = [app.company_name, app.applicant_name].filter(Boolean) as string[];
   const seen = new Set<string>();
