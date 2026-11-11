@@ -47,13 +47,33 @@ describe('ベンダーからお客様への書類', () => {
     expect(vars.self_pay).toBe('1,030,000円');
     expect(vars.tool_lines).toBe('・BizFlo（DL07-0021999）　2,000,000円（税抜）\n・PCセキュリティみまもりパック　300,000円（税抜）');
     const text = renderContractText(VENDOR_CONTRACT_TEMPLATE, vars as never);
-    expect(text).toContain('MEM株式会社（以下「甲」という）と株式会社ベンダー（以下「乙」という）');
-    expect(text).toContain('交付申請番号 1234567');
+    expect(text).toContain('MEM株式会社（以下「甲」という。）と、株式会社ベンダー（以下「乙」という。）');
+    expect(text).toContain('契約金額は金2,530,000円（税込）');
+    expect(text).toContain('（税抜 2,300,000円、消費税 230,000円）');
+    expect(text).toContain('・BizFlo（DL07-0021999）　2,000,000円（税抜）');
+    expect(text).toContain('甲：MEM株式会社\n所在地：東京都\n代表者：尾崎 太郎');
+    expect(text).toContain('乙：株式会社ベンダー\n所在地：大阪府\n代表者：山田 花子');
     expect(text).not.toContain('{{');
   });
 
   it('仮の文面に知らない差し込みが無い・打ち間違いを見つける', () => {
     expect(unknownVars(VENDOR_CONTRACT_TEMPLATE)).toEqual([]);
     expect(unknownVars('{{client_company}} と {{vender_name}}')).toEqual(['vender_name']);
+  });
+});
+
+import { fillConsentParty, readConsentParty, renderContractHtml } from '@/lib/contracts/template';
+describe('ベンダーの契約書: 甲の所在地・代表者を署名のときに入れる', () => {
+  const html = renderContractHtml(VENDOR_CONTRACT_TEMPLATE, {
+    client_company: 'A社',
+    vendor_name: 'ベンダー',
+    vendor_address: '大阪府',
+    vendor_representative: '乙 太郎',
+  } as never);
+  it('甲（最初の欄）だけを読む・書き換える', () => {
+    expect(readConsentParty(html)).toEqual({ company_name: 'A社', address: '', representative_name: '' });
+    const out = fillConsentParty(html, { company_name: 'A社', address: '東京都', representative_name: '甲 花子' });
+    expect(out).toContain('甲：A社<br>所在地：東京都<br>代表者：甲 花子');
+    expect(out).toContain('乙：ベンダー<br>所在地：大阪府<br>代表者：乙 太郎');
   });
 });

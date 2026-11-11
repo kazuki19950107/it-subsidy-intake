@@ -155,8 +155,7 @@ export async function signContract(
   const signedAt = new Date().toISOString();
 
   // 同意書の「住所・名称・代表者」は、お客様が入れた値で本文を書き換えてから PDF にする
-  const isConsent = (contract.kind ?? 'consent') === 'consent';
-  const needsParty = isConsent && !!readConsentParty(contract.body_html);
+  const needsParty = !!readConsentParty(contract.body_html);
   let bodyHtml = contract.body_html;
   if (needsParty) {
     const p = input.party;
@@ -238,7 +237,7 @@ async function fillCaseFromParty(applicationId: string, p: ConsentParty, signerN
   if (Object.keys(update).length === 0) return;
   await supabase.from('applications').update(update).eq('id', applicationId);
   for (const [k, v] of Object.entries(update)) {
-    await addHistory(applicationId, labels[k], null, v, { type: 'customer', name: `${signerName}（同意書）` });
+    await addHistory(applicationId, labels[k], null, v, { type: 'customer', name: `${signerName}（署名のときに入力）` });
   }
 }
 

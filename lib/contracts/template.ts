@@ -78,11 +78,23 @@ export function alignConsentHtml(html: string): string {
 
 export type ConsentParty = { address: string; company_name: string; representative_name: string };
 
-const PARTY_LINES: Array<[keyof ConsentParty, string]> = [
-  ['address', '住　所　'],
-  ['company_name', '名　称　'],
-  ['representative_name', '代表者　'],
+// 書類ごとの書き方（同意書: 住　所　… / ベンダーの契約書: 甲：… 所在地：… 代表者：…）。最初に見つかったもの＝甲（お客様）
+const PARTY_FORMATS: Array<Array<[keyof ConsentParty, string]>> = [
+  [
+    ['address', '住　所　'],
+    ['company_name', '名　称　'],
+    ['representative_name', '代表者　'],
+  ],
+  [
+    ['company_name', '甲：'],
+    ['address', '所在地：'],
+    ['representative_name', '代表者：'],
+  ],
 ];
+
+function formatOf(html: string): Array<[keyof ConsentParty, string]> | null {
+  return PARTY_FORMATS.find((f) => f.every(([, label]) => html.includes(label))) ?? null;
+}
 
 function unescapeHtml(s: string): string {
   return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
@@ -90,8 +102,10 @@ function unescapeHtml(s: string): string {
 
 /** 同意書の本文から、署名する会社の「住所・名称・代表者」を読む（未入力は空） */
 export function readConsentParty(html: string): ConsentParty | null {
+  const lines = formatOf(html);
+  if (!lines) return null;
   const out: Partial<ConsentParty> = {};
-  for (const [k, label] of PARTY_LINES) {
+  for (const [k, label] of lines) {
     const m = html.match(new RegExp(`${label}([^<]*)`));
     if (!m) return null;
     const v = unescapeHtml(m[1]).trim();
@@ -102,8 +116,10 @@ export function readConsentParty(html: string): ConsentParty | null {
 
 /** 同意書の本文の「住所・名称・代表者」を、お客様が入れた値に置き換える */
 export function fillConsentParty(html: string, p: ConsentParty): string {
+  const lines = formatOf(html);
+  if (!lines) return html;
   let s = html;
-  for (const [k, label] of PARTY_LINES) {
+  for (const [k, label] of lines) {
     s = s.replace(new RegExp(`${label}[^<]*`), `${label}${escapeHtml(p[k].trim()) || '（未入力）'}`);
   }
   return s;

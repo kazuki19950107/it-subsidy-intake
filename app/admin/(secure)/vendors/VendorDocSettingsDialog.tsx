@@ -113,7 +113,7 @@ export function VendorDocSettingsDialog({ vendor, onClose }: { vendor: VendorWit
           <Field label="題名" hint={`空なら「${VENDOR_CONTRACT_TITLE}」`}>
             <input className={INPUT} value={f.contract_title} onChange={(e) => set({ contract_title: e.target.value })} />
           </Field>
-          <Field label="本文" hint="空なら仮の文面を使います。段落は空行で区切り、{{...}} のところに案件の内容が入ります。">
+          <Field label="本文" hint="空なら既定の文面（全ベンダー共通）を使います。段落は空行で区切り、{{...}} のところに案件の内容が入ります。">
             <textarea
               className={`${AREA} font-mono text-xs`}
               rows={12}
@@ -125,7 +125,7 @@ export function VendorDocSettingsDialog({ vendor, onClose }: { vendor: VendorWit
           <div className="flex gap-3 text-xs">
             {!f.contract_template && (
               <button type="button" className="text-teal underline" onClick={() => set({ contract_template: VENDOR_CONTRACT_TEMPLATE })}>
-                仮の文面を入れて直す
+                既定の文面を入れて直す
               </button>
             )}
             <button type="button" className="text-teal underline" onClick={() => setShowVars((v) => !v)}>

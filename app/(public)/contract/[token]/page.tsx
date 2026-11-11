@@ -54,7 +54,7 @@ export default async function ContractPage({ params }: { params: Promise<{ token
                 label={label}
                 title={contract.title}
                 bodyHtml={contract.body_html}
-                initialParty={(contract.kind ?? 'consent') === 'consent' ? readConsentParty(contract.body_html) : null}
+                initialParty={readConsentParty(contract.body_html)}
               />
             )}
           </>
