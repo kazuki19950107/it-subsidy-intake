@@ -13,7 +13,7 @@ import { computeProgress } from '@/lib/utils/progress';
 import { getDocRules } from '@/lib/docRules/settings';
 import { requiredDocsFor } from '@/lib/docRules/defaults';
 import type { Application, CheckItemDef, DocType, Stage, VendorContact } from '@/lib/supabase/types';
-import { nextAction } from '@/lib/cases/nextAction';
+import { nextAction, stageReached } from '@/lib/cases/nextAction';
 
 // 静的プリレンダーされると admin_memo 編集や新規発行が反映されないため毎回SSR。
 export const dynamic = 'force-dynamic';
@@ -58,7 +58,10 @@ function matchesQuery(r: DashboardRow, q: string): boolean {
 }
 
 /** 一覧に出す「次にやること」（案件の詳細のいちばん上と同じ判定） */
-function nextFor(r: DashboardRow): { label: string; who: 'staff' | 'customer' | 'auto'; phase: number } | null {
+function nextFor(
+  r: DashboardRow,
+  stages: Array<{ id: string; name: string; sort_order: number; milestone?: string | null }>,
+): { label: string; who: 'staff' | 'customer' | 'auto'; phase: number } | null {
   const pick = (kind: string) => {
     const c = (r.contracts ?? []).filter((x) => (x.kind ?? 'consent') === kind && x.status !== 'void');
     if (c.some((x) => x.status === 'signed')) return 'signed' as const;
@@ -73,12 +76,12 @@ function nextFor(r: DashboardRow): { label: string; who: 'staff' | 'customer' | 
     formSubmitted: !!(r.submitted_at || r.documents_submitted_at),
     staffReviewCount: (r.documents ?? []).filter((d) => d.needs_staff_review).length,
     portalLinked: !!r.portal_application_no,
-    rejected: /不採択|辞退|取下|破棄/.test(r.portal_status ?? ''),
-    adopted: !!r.adopted_at,
+    rejected: /不採択|辞退|取下|破棄/.test(r.portal_status ?? '') || /不採択|終了/.test(r.stage?.name ?? ''),
+    adopted: !!(r.adopted_at || r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'adopted'),
     vendorSet: !!r.vendor_contact_id,
     vendorContract: pick('vendor_client'),
     vendorInvoice: (r.invoices ?? []).some((i) => i.kind === 'vendor_to_client' && !i.voided_at),
-    grantDecided: !!r.grant_decided_at,
+    grantDecided: !!(r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'grant_decided'),
     billing: bs ? { issued: !!bs.invoice_issued_on, paid: !!bs.paid_on } : null,
   });
   if (na.finished === 'rejected') return { label: '終了（不採択）', who: 'auto', phase: 3 };
@@ -130,14 +133,14 @@ export default async function DashboardPage({
       )
       .order('updated_at', { ascending: false }),
     supabase.from('vendor_contacts').select('id, name, active').order('name', { ascending: true }),
-    supabase.from('stages').select('id, name, color, sort_order').order('sort_order'),
+    supabase.from('stages').select('id, name, color, sort_order, milestone').order('sort_order'),
     supabase.from('check_item_defs').select('id, name, active').order('sort_order'),
     getDocRules(),
   ]);
 
   const rows = (data ?? []) as unknown as DashboardRow[];
   const vendors = (vendorRows ?? []) as Pick<VendorContact, 'id' | 'name' | 'active'>[];
-  const stages = (stageRows ?? []) as Pick<Stage, 'id' | 'name' | 'color' | 'sort_order'>[];
+  const stages = (stageRows ?? []) as Pick<Stage, 'id' | 'name' | 'color' | 'sort_order' | 'milestone'>[];
   const checkDefs = (defRows ?? []) as Pick<CheckItemDef, 'id' | 'name' | 'active'>[];
   const portalStatuses = Array.from(new Set(rows.map((r) => r.portal_status).filter(Boolean) as string[])).sort();
   const rounds = Array.from(new Set(rows.map((r) => r.round).filter((v): v is number => v != null))).sort((a, b) => a - b);
@@ -170,7 +173,7 @@ export default async function DashboardPage({
       _staffName: r.staff?.name ?? null,
       _nextDue: nextDue(r),
       _openChecks: openChecks,
-      _next: nextFor(r),
+      _next: nextFor(r, stages),
     };
   });
 

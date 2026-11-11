@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { nextAction, type NextActionInput } from '@/lib/cases/nextAction';
+import { nextAction, stageReached, type NextActionInput } from '@/lib/cases/nextAction';
+
+describe('段階から節目を判断する', () => {
+  const stages = [
+    { id: 'a', sort_order: 1, milestone: 'applied' },
+    { id: 'b', sort_order: 2, milestone: 'adopted' },
+    { id: 'c', sort_order: 3, milestone: 'grant_decided' },
+  ];
+  it('今の段階が節目の段階かそれより先なら true', () => {
+    expect(stageReached('c', stages, 'adopted')).toBe(true);
+    expect(stageReached('b', stages, 'adopted')).toBe(true);
+    expect(stageReached('a', stages, 'adopted')).toBe(false);
+    expect(stageReached(null, stages, 'adopted')).toBe(false);
+  });
+});
 
 const fresh: NextActionInput = {
   infoFilled: false,

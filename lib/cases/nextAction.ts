@@ -35,6 +35,17 @@ export type Step = {
   targetLabel: string;
 };
 
+/** 案件の今の段階が、節目（採択など）の段階かそれより先か。日付が空でも段階で分かるようにする */
+export function stageReached(
+  stageId: string | null,
+  stages: Array<{ id: string; sort_order: number; milestone?: string | null }>,
+  milestone: string,
+): boolean {
+  const cur = stages.find((x) => x.id === stageId);
+  const target = stages.find((x) => x.milestone === milestone);
+  return !!cur && !!target && cur.sort_order >= target.sort_order;
+}
+
 export const PHASE_TITLES: Record<number, string> = {
   1: '受付〜同意書',
   2: '書類の回収',

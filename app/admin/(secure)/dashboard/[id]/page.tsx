@@ -32,7 +32,7 @@ import { ChecksPanel, type CheckRow } from './ChecksPanel';
 import { ContractPanel } from './ContractPanel';
 import { VendorDocsPanel } from './VendorDocsPanel';
 import { NextActionCard } from './NextActionCard';
-import { nextAction } from '@/lib/cases/nextAction';
+import { nextAction, stageReached } from '@/lib/cases/nextAction';
 import { vendorDocsSummary } from '@/lib/vendorDocs/service';
 import { BillingPanel, HistoryPanel, LineGroupsPanel } from './CaseSidePanels';
 
@@ -110,12 +110,18 @@ export default async function ApplicationDetailPage({
     formSubmitted: !!(application.submitted_at || application.documents_submitted_at),
     staffReviewCount: staffReviewDocs.length,
     portalLinked: !!application.portal_application_no,
-    rejected: /不採択|辞退|取下|破棄/.test(application.portal_status ?? ''),
-    adopted: !!application.adopted_at,
+    rejected:
+      /不採択|辞退|取下|破棄/.test(application.portal_status ?? '') ||
+      /不採択|終了/.test(options.stages.find((x) => x.id === application.stage_id)?.name ?? ''),
+    // 日付が空でも、段階が採択より先なら採択済みとみなす
+    adopted:
+      !!(application.adopted_at || application.grant_decided_at || application.subsidy_paid_at) ||
+      stageReached(application.stage_id, options.stages, 'adopted'),
     vendorSet: !!application.vendor_contact_id,
     vendorContract: vendorDocs.contract ? (vendorDocs.contract.status === 'void' ? 'none' : vendorDocs.contract.status) : 'none',
     vendorInvoice: !!vendorDocs.invoice,
-    grantDecided: !!application.grant_decided_at,
+    grantDecided:
+      !!(application.grant_decided_at || application.subsidy_paid_at) || stageReached(application.stage_id, options.stages, 'grant_decided'),
     billing: billingRow ? { issued: !!billingRow.invoice_issued_on, paid: !!billingRow.paid_on } : null,
   });
 
