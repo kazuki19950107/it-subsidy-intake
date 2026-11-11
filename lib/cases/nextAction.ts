@@ -1,3 +1,5 @@
+import { stageForPortalStatus } from './stageRules';
+import type { Milestone } from './constants';
 // 案件の「次にやること」（純粋関数）。案件の詳細のいちばん上に、フェーズと次の一手を出すために使う。
 // 上から順に見て、終わっていない最初の項目を「次にやること」にする。
 
@@ -35,15 +37,25 @@ export type Step = {
   targetLabel: string;
 };
 
-/** 案件の今の段階が、節目（採択など）の段階かそれより先か。日付が空でも段階で分かるようにする */
+/**
+ * 案件が節目（採択など）まで来ているか。日付が空でも、今の段階か、ポータルの状態が当てはまる段階が
+ * 節目の段階と同じかそれより先なら、来ているとみなす。
+ */
 export function stageReached(
   stageId: string | null,
-  stages: Array<{ id: string; sort_order: number; milestone?: string | null }>,
+  stages: Array<{ id: string; sort_order: number; milestone?: string | null; portal_keywords?: string[] | null }>,
   milestone: string,
+  portalStatus?: string | null,
 ): boolean {
-  const cur = stages.find((x) => x.id === stageId);
   const target = stages.find((x) => x.milestone === milestone);
-  return !!cur && !!target && cur.sort_order >= target.sort_order;
+  if (!target) return false;
+  const cur = stages.find((x) => x.id === stageId);
+  if (cur && cur.sort_order >= target.sort_order) return true;
+  const fromPortal = stageForPortalStatus(
+    stages.map((x) => ({ ...x, milestone: (x.milestone ?? null) as Milestone | null, portal_keywords: x.portal_keywords ?? null })),
+    portalStatus,
+  );
+  return !!fromPortal && fromPortal.sort_order >= target.sort_order;
 }
 
 export const PHASE_TITLES: Record<number, string> = {

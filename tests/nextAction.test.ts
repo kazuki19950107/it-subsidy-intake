@@ -13,6 +13,17 @@ describe('段階から節目を判断する', () => {
     expect(stageReached('a', stages, 'adopted')).toBe(false);
     expect(stageReached(null, stages, 'adopted')).toBe(false);
   });
+  it('段階が古くても、ポータルの状態が先の段階の語なら true', () => {
+    const withKw = [
+      { id: 'a', sort_order: 1, milestone: 'applied', portal_keywords: ['申請中'] },
+      { id: 'b', sort_order: 2, milestone: 'adopted', portal_keywords: ['採択'] },
+      { id: 'c', sort_order: 3, milestone: 'grant_decided', portal_keywords: ['交付決定', '確定済'] },
+      { id: 'x', sort_order: 9, milestone: null, portal_keywords: ['不採択'] },
+    ];
+    expect(stageReached('a', withKw, 'adopted', '補助金 確定済')).toBe(true);
+    expect(stageReached('a', withKw, 'grant_decided', '補助金 確定済')).toBe(true);
+    expect(stageReached('a', withKw, 'adopted', '申請中')).toBe(false);
+  });
 });
 
 const fresh: NextActionInput = {

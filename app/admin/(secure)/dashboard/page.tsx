@@ -60,7 +60,7 @@ function matchesQuery(r: DashboardRow, q: string): boolean {
 /** 一覧に出す「次にやること」（案件の詳細のいちばん上と同じ判定） */
 function nextFor(
   r: DashboardRow,
-  stages: Array<{ id: string; name: string; sort_order: number; milestone?: string | null }>,
+  stages: Array<{ id: string; name: string; sort_order: number; milestone?: string | null; portal_keywords?: string[] | null }>,
 ): { label: string; who: 'staff' | 'customer' | 'auto'; phase: number } | null {
   const pick = (kind: string) => {
     const c = (r.contracts ?? []).filter((x) => (x.kind ?? 'consent') === kind && x.status !== 'void');
@@ -77,11 +77,11 @@ function nextFor(
     staffReviewCount: (r.documents ?? []).filter((d) => d.needs_staff_review).length,
     portalLinked: !!r.portal_application_no,
     rejected: /不採択|辞退|取下|破棄/.test(r.portal_status ?? '') || /不採択|終了/.test(r.stage?.name ?? ''),
-    adopted: !!(r.adopted_at || r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'adopted'),
+    adopted: !!(r.adopted_at || r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'adopted', r.portal_status),
     vendorSet: !!r.vendor_contact_id,
     vendorContract: pick('vendor_client'),
     vendorInvoice: (r.invoices ?? []).some((i) => i.kind === 'vendor_to_client' && !i.voided_at),
-    grantDecided: !!(r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'grant_decided'),
+    grantDecided: !!(r.grant_decided_at || r.subsidy_paid_at) || stageReached(r.stage_id, stages, 'grant_decided', r.portal_status),
     billing: bs ? { issued: !!bs.invoice_issued_on, paid: !!bs.paid_on } : null,
   });
   if (na.finished === 'rejected') return { label: '終了（不採択）', who: 'auto', phase: 3 };
@@ -133,14 +133,14 @@ export default async function DashboardPage({
       )
       .order('updated_at', { ascending: false }),
     supabase.from('vendor_contacts').select('id, name, active').order('name', { ascending: true }),
-    supabase.from('stages').select('id, name, color, sort_order, milestone').order('sort_order'),
+    supabase.from('stages').select('id, name, color, sort_order, milestone, portal_keywords').order('sort_order'),
     supabase.from('check_item_defs').select('id, name, active').order('sort_order'),
     getDocRules(),
   ]);
 
   const rows = (data ?? []) as unknown as DashboardRow[];
   const vendors = (vendorRows ?? []) as Pick<VendorContact, 'id' | 'name' | 'active'>[];
-  const stages = (stageRows ?? []) as Pick<Stage, 'id' | 'name' | 'color' | 'sort_order' | 'milestone'>[];
+  const stages = (stageRows ?? []) as Pick<Stage, 'id' | 'name' | 'color' | 'sort_order' | 'milestone' | 'portal_keywords'>[];
   const checkDefs = (defRows ?? []) as Pick<CheckItemDef, 'id' | 'name' | 'active'>[];
   const portalStatuses = Array.from(new Set(rows.map((r) => r.portal_status).filter(Boolean) as string[])).sort();
   const rounds = Array.from(new Set(rows.map((r) => r.round).filter((v): v is number => v != null))).sort((a, b) => a - b);

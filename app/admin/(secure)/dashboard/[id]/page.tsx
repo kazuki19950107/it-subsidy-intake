@@ -116,12 +116,12 @@ export default async function ApplicationDetailPage({
     // 日付が空でも、段階が採択より先なら採択済みとみなす
     adopted:
       !!(application.adopted_at || application.grant_decided_at || application.subsidy_paid_at) ||
-      stageReached(application.stage_id, options.stages, 'adopted'),
+      stageReached(application.stage_id, options.stages, 'adopted', application.portal_status),
     vendorSet: !!application.vendor_contact_id,
     vendorContract: vendorDocs.contract ? (vendorDocs.contract.status === 'void' ? 'none' : vendorDocs.contract.status) : 'none',
     vendorInvoice: !!vendorDocs.invoice,
     grantDecided:
-      !!(application.grant_decided_at || application.subsidy_paid_at) || stageReached(application.stage_id, options.stages, 'grant_decided'),
+      !!(application.grant_decided_at || application.subsidy_paid_at) || stageReached(application.stage_id, options.stages, 'grant_decided', application.portal_status),
     billing: billingRow ? { issued: !!billingRow.invoice_issued_on, paid: !!billingRow.paid_on } : null,
   });
 
