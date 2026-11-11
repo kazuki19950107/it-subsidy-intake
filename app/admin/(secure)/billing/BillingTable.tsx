@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InvoiceDialog } from './InvoiceDialog';
 import type { BillingSchedule } from '@/lib/supabase/types';
 import { BILLING_TIMING_LABELS, type BillingTiming } from '@/lib/cases/constants';
 import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
@@ -18,7 +20,16 @@ const COLUMNS: SortColumns<BillingRow> = {
   memo: (r) => r.memo,
 };
 
-export type BillingRow = BillingSchedule & { case_name: string; tool_code: string | null; round: number | null };
+export type BillingRow = BillingSchedule & {
+  case_name: string;
+  tool_code: string | null;
+  tool_name: string | null;
+  round: number | null;
+  company_name: string | null;
+  company_address: string | null;
+  /** 作った請求書（無効にしたものは除く） */
+  invoice: { id: string; invoice_no: string; issued_on: string; total: number } | null;
+};
 
 const FILTERS = [
   { value: 'open', label: '未入金' },
@@ -26,8 +37,9 @@ const FILTERS = [
   { value: 'all', label: 'すべて' },
 ] as const;
 
-function Row({ row }: { row: BillingRow }) {
+function Row({ row, itemLabel, missingSettings }: { row: BillingRow; itemLabel: string; missingSettings: string[] }) {
   const router = useRouter();
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [amount, setAmount] = useState(row.amount != null ? String(row.amount) : '');
   const [issued, setIssued] = useState(row.invoice_issued_on ?? '');
   const [paid, setPaid] = useState(row.paid_on ?? '');
@@ -82,10 +94,24 @@ function Row({ row }: { row: BillingRow }) {
       </td>
       <td className="py-2 pr-2">
         <input type="date" className={input} value={issued} onChange={(e) => setIssued(e.target.value)} aria-label="請求書発行日" />
-        {!row.invoice_issued_on && (
-          <button type="button" className="block text-[11px] text-teal hover:underline mt-1" disabled={busy} onClick={() => save({ issue: true })}>
-            今日発行した
+        <div className="flex flex-col items-start gap-0.5 mt-1">
+          {row.invoice ? (
+            <a href={`/api/admin/invoices/${row.invoice.id}/pdf`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-teal hover:underline">
+              <FileText className="w-3 h-3" />
+              {row.invoice.invoice_no}（{row.invoice.total.toLocaleString()}円）
+            </a>
+          ) : null}
+          <button type="button" className="text-[11px] text-teal hover:underline font-semibold" disabled={busy} onClick={() => setInvoiceOpen(true)}>
+            {row.invoice ? '請求書を作り直す' : '請求書を作る'}
           </button>
+          {!row.invoice_issued_on && (
+            <button type="button" className="text-[11px] text-mute hover:underline" disabled={busy} onClick={() => save({ issue: true })}>
+              ほかで作った（今日発行した）
+            </button>
+          )}
+        </div>
+        {invoiceOpen && (
+          <InvoiceDialog row={row} itemLabel={itemLabel} missingSettings={missingSettings} open={invoiceOpen} onClose={() => setInvoiceOpen(false)} />
         )}
       </td>
       <td className="py-2 pr-2">
@@ -104,7 +130,15 @@ function Row({ row }: { row: BillingRow }) {
   );
 }
 
-export function BillingTable({ rows }: { rows: BillingRow[] }) {
+export function BillingTable({
+  rows,
+  itemLabel,
+  missingSettings,
+}: {
+  rows: BillingRow[];
+  itemLabel: string;
+  missingSettings: string[];
+}) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['value']>('open');
   const filtered = rows.filter((r) => (filter === 'open' ? !r.paid_on : filter === 'uninvoiced' ? !r.invoice_issued_on : true));
   const { sorted: shown, sort, toggle } = useTableSort('billing', filtered, COLUMNS);
@@ -144,7 +178,7 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
             </thead>
             <tbody>
               {shown.map((r) => (
-                <Row key={`${r.id}-${r.updated_at}`} row={r} />
+                <Row key={`${r.id}-${r.updated_at}`} row={r} itemLabel={itemLabel} missingSettings={missingSettings} />
               ))}
             </tbody>
           </table>

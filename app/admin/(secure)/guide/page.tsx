@@ -4,6 +4,8 @@ import { getCaseOptions } from '@/lib/cases/queries';
 import { getDocRules } from '@/lib/docRules/settings';
 import { ALL_DOC_TYPES, ACCEPT_LABELS, FINANCIAL_SECTION_LABELS } from '@/lib/docRules/defaults';
 import { ADMIN_PAGES } from '@/lib/admin/pages';
+import { getInvoiceSettings } from '@/lib/billing/invoiceService';
+import { missingSettings } from '@/lib/billing/invoice';
 import { BILLING_TIMING_LABELS, MILESTONE_LABELS, MILESTONES, type Milestone } from '@/lib/cases/constants';
 import { computeFee } from '@/lib/cases/fee';
 import type { DocRule } from '@/lib/docRules/defaults';
@@ -141,7 +143,8 @@ function ruleText(r: DocRule): string {
 }
 
 export default async function GuidePage() {
-  const [options, rules] = await Promise.all([getCaseOptions(), getDocRules()]);
+  const [options, rules, invoiceSettings] = await Promise.all([getCaseOptions(), getDocRules(), getInvoiceSettings()]);
+  const invoiceMissing = missingSettings(invoiceSettings);
   const stages = options.stages;
   const tools = options.tools.filter((t) => t.active);
   const checkDefs = options.checkDefs.filter((d) => d.active);
@@ -696,7 +699,7 @@ export default async function GuidePage() {
         <FlowRow
           items={[
             { title: '請求予定ができる', sub: '売上・請求の画面に出る', who: 'auto' },
-            { title: '請求書を発行', sub: '「今日発行した」を押す', who: 'staff' },
+            { title: '請求書を作る', sub: '「請求書を作る」でPDF・発行日も入る', who: 'staff' },
             { title: '「入金確認」が立つ', sub: '「請求書発行」は完了に', who: 'auto' },
             { title: '入金日を入れる', sub: '「入金確認」が完了に', who: 'staff', tone: 'border-teal bg-teal-light/40' },
           ]}
@@ -705,6 +708,34 @@ export default async function GuidePage() {
           ポータルより先に採択などが分かったときは、案件の詳細の「節目の日付」に日付を入れて保存してください（段階も進みます）。補助金額を直すと、フィーと（請求書を発行する前なら）請求額も計算し直されます。
           <L href="/admin/billing">売上・請求</L> では、ツール別・回次別・月別の売上見込みを確認できます。
         </Note>
+
+        <div className="text-xs font-semibold text-mute pt-2">請求書を作る</div>
+        <ul className="text-sm list-disc pl-5 space-y-1">
+          <li>
+            <L href="/admin/billing">売上・請求</L> の請求予定の行で「請求書を作る」を押し、宛名・発行日・品目と金額を確かめて「作る」。PDF が開き、発行日が入って「請求書発行」のチェックが完了になります。「プレビュー」で先に見た目を確かめられます。
+          </li>
+          <li>金額や宛名を直したいときは「請求書を作り直す」。前の請求書は無効になり、新しい番号で作られます（前の番号は使い回しません）。</li>
+          <li>請求書番号は「頭-年月-連番」（例: {invoiceSettings.number_prefix ? `${invoiceSettings.number_prefix}-` : ''}202611-001）です。</li>
+          <li>ほかのツールで請求書を作ったときは、今までどおり発行日を入れるか「ほかで作った（今日発行した）」を押します。</li>
+        </ul>
+        <div className="text-xs rounded-md border border-rule p-3 space-y-0.5">
+          <div className="flex items-center font-semibold text-mute">
+            いまの請求書の設定
+            <Live />
+          </div>
+          <div>
+            請求元: {invoiceSettings.issuer_name || '（未設定）'}・登録番号: {invoiceSettings.registration_no || '（未設定）'}
+          </div>
+          <div>
+            フィーの金額は{invoiceSettings.tax_mode === 'inclusive' ? '税込' : '税別'}（消費税 {Math.round(invoiceSettings.tax_rate * 100)}%
+            {invoiceSettings.tax_mode === 'inclusive' ? 'を含む' : 'を上乗せ'}）・支払期限は発行日から{invoiceSettings.payment_days}日
+            {invoiceSettings.payment_end_of_month ? '後の月末' : '後'}
+          </div>
+          {invoiceMissing.length > 0 && (
+            <div className="text-accent">まだ入っていない項目: {invoiceMissing.join('・')}（入れるまで請求書は作れません）</div>
+          )}
+          <L href="/admin/settings#invoice">設定の「請求書」で変える →</L>
+        </div>
       </Section>
 
       {/* ───────── 毎日 ───────── */}
@@ -716,7 +747,7 @@ export default async function GuidePage() {
             { time: '随時', what: 'トークで未読（緑の丸）のグループを開き、お客様の質問や送られた書類を確認する', href: '/admin/talk', link: 'トーク' },
             { time: '随時', what: '書類提出の通知が来たら、担当者確認が必要な書類と照合結果を見る', href: '/admin/dashboard?status=submitted', link: '送信済みの案件' },
             { time: '週1回', what: '「未紐付け」のグループと「送れなかった通知」がないか確認', href: '/admin/line', link: 'LINE' },
-            { time: '請求のたび', what: '請求書発行日・入金日を記録する', href: '/admin/billing', link: '売上・請求' },
+            { time: '請求のたび', what: '「請求書を作る」で請求書を作って送り、入金されたら入金日を入れる', href: '/admin/billing', link: '売上・請求' },
           ].map((x) => (
             <div key={x.what} className="flex gap-3 rounded-md border border-rule p-3">
               <span className="shrink-0 rounded bg-ink text-white text-[11px] font-semibold px-2 py-0.5 h-fit">{x.time}</span>

@@ -73,7 +73,14 @@ export function BillingPanel({ schedule }: { schedule: BillingSchedule | null })
             <div>
               発生: {schedule.occurred_on}（{BILLING_TIMING_LABELS[schedule.trigger as BillingTiming] ?? schedule.trigger}）
             </div>
-            <div>請求書発行: {schedule.invoice_issued_on ?? '未発行'}</div>
+            <div>
+              請求書発行: {schedule.invoice_issued_on ?? '未発行'}
+              {schedule.invoice_url?.startsWith('/api/admin/invoices/') && (
+                <a href={schedule.invoice_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-teal hover:underline">
+                  請求書PDF（{schedule.invoice_external_id}）
+                </a>
+              )}
+            </div>
             <div>入金: {schedule.paid_on ?? '未入金'}</div>
           </>
         )}

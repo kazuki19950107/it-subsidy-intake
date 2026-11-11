@@ -3,6 +3,8 @@ import { getCaseOptions } from '@/lib/cases/queries';
 import { getDocRules } from '@/lib/docRules/settings';
 import { BILLING_TIMINGS, BILLING_TIMING_LABELS, MILESTONES, MILESTONE_LABELS } from '@/lib/cases/constants';
 import { DocRulesEditor } from './DocRulesEditor';
+import { InvoiceSettingsEditor } from './InvoiceSettingsEditor';
+import { getInvoiceSettings } from '@/lib/billing/invoiceService';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +14,11 @@ const SECTIONS = [
   { id: 'tools', label: 'ツールとフィー' },
   { id: 'accounts', label: '社内担当' },
   { id: 'docs', label: '書類の判定' },
+  { id: 'invoice', label: '請求書' },
 ];
 
 export default async function SettingsPage() {
-  const [options, rules] = await Promise.all([getCaseOptions(), getDocRules()]);
+  const [options, rules, invoiceSettings] = await Promise.all([getCaseOptions(), getDocRules(), getInvoiceSettings()]);
   const stageOptions = options.stages.map((s) => ({ value: s.id, label: s.name }));
 
   const stageFields: FieldDef[] = [
@@ -72,7 +75,7 @@ export default async function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">設定</h1>
-        <p className="text-sm text-mute">段階・チェック項目・ツール・社内担当・書類の判定を変えられます。</p>
+        <p className="text-sm text-mute">段階・チェック項目・ツール・社内担当・書類の判定・請求書の内容を変えられます。</p>
         <nav className="flex flex-wrap gap-2 mt-3 text-sm">
           {SECTIONS.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="px-3 py-1 rounded-full border border-rule bg-white hover:bg-teal-light">
@@ -140,6 +143,10 @@ export default async function SettingsPage() {
 
       <div id="docs">
         <DocRulesEditor rules={rules} />
+      </div>
+
+      <div id="invoice">
+        <InvoiceSettingsEditor initial={invoiceSettings} />
       </div>
     </div>
   );
