@@ -42,19 +42,13 @@ export default async function ApplicationDetailPage({
 }) {
   const { id } = await params;
   const supabase = createServiceRoleClient();
-  const { data: app } = await supabase
-    .from('applications')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+  // 案件と書類は一緒に読む（順番に待つと遅くなるため）
+  const [{ data: app }, { data: docs }] = await Promise.all([
+    supabase.from('applications').select('*').eq('id', id).maybeSingle(),
+    supabase.from('documents').select('*').eq('application_id', id).order('uploaded_at', { ascending: true }),
+  ]);
   if (!app) notFound();
   const application = app as Application;
-
-  const { data: docs } = await supabase
-    .from('documents')
-    .select('*')
-    .eq('application_id', id)
-    .order('uploaded_at', { ascending: true });
   const documents = (docs ?? []) as Document[];
 
   const [vendors, currentVendor, portal, options, rules, checksRes, contractRes, groupsRes, historyRes, billingRes, vendorDocs] =
