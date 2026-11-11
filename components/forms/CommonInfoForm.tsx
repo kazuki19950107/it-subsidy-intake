@@ -216,6 +216,14 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
           </AlertDescription>
         </Alert>
 
+        {gbizStatus !== 'acquired' && (
+          <Alert variant="warning" className="mt-3">
+            <AlertDescription className="text-xs">
+              GビズIDプライムが<strong>取得済みでないと、最後の送信はできません</strong>（補助金の申請にGビズIDプライムが必要なため）。書類のアップロードは先に進められます。取得が終わったら、ここで「取得済み」を選んでください。
+            </AlertDescription>
+          </Alert>
+        )}
+
         {gbizStatus === 'acquired' && (
           <div className="grid gap-3 md:grid-cols-2 mt-3">
             <div className="space-y-2">

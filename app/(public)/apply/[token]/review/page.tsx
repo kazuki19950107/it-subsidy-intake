@@ -65,8 +65,10 @@ export default async function ReviewPage({
   if (app.applicant_type === 'corporation' && !app.company_name) basicInfoMissing.push('会社名');
 
   const blockingErrors = crossCheck.filter((c) => c.level === 'error');
+  // GビズIDプライムが取得済みでないと、補助金の申請ができないため送信できない
+  const gbizReady = app.gbiz_id_status === 'acquired';
   const canSubmit =
-    missing.length === 0 && basicInfoMissing.length === 0 && blockingErrors.length === 0;
+    missing.length === 0 && basicInfoMissing.length === 0 && blockingErrors.length === 0 && gbizReady;
 
   const blockers: string[] = [];
   if (basicInfoMissing.length > 0) {
@@ -77,6 +79,11 @@ export default async function ReviewPage({
   }
   if (blockingErrors.length > 0) {
     blockers.push(`書類の不備: ${blockingErrors.length}件`);
+  }
+  if (!gbizReady) {
+    blockers.push(
+      'GビズIDプライムが取得済みではありません。取得が終わったら「基本情報」で「取得済み」を選んでから送信してください（書類の準備は先に進められます）',
+    );
   }
 
   return (

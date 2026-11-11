@@ -31,6 +31,12 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  if (app.gbiz_id_status !== 'acquired') {
+    return NextResponse.json(
+      { error: 'GビズIDプライムが取得済みでないため送信できません。取得後に「取得済み」を選んでから送信してください' },
+      { status: 400 },
+    );
+  }
   if (app.status === 'submitted' || app.status === 'completed') {
     return NextResponse.json(
       { error: '既に送信済みです' },
