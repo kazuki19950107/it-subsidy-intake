@@ -6,7 +6,7 @@ import type { Application, Contract, Tool } from '@/lib/supabase/types';
 import { sha256 } from '@/lib/utils/hash';
 import { BILLING_TIMING_LABELS } from '@/lib/cases/constants';
 import { addHistory, reachMilestone } from '@/lib/cases/service';
-import { CONTRACT_TEMPLATE, CONTRACT_TITLE, TEMPLATE_VERSION, renderContractHtml, type ContractVars } from './template';
+import { CONTRACT_TEMPLATE, CONTRACT_TITLE, TEMPLATE_VERSION, renderContractHtml, warekiDate, alignConsentHtml, type ContractVars } from './template';
 import { contractPdfHtml, renderPdf } from './pdf';
 import { noTimestamp, type TimestampProvider } from './timestamp';
 
@@ -38,7 +38,17 @@ export async function contractVarsFor(app: Application): Promise<ContractVars> {
     const { data } = await supabase.from('tools').select('*').eq('id', app.tool_id).maybeSingle();
     tool = (data as Tool | null) ?? null;
   }
+  // 宛名は案件のベンダー（正式な会社名）。ベンダーが無ければ自社名
+  let addressee = AGENT_NAME;
+  if (app.vendor_contact_id) {
+    const { data: v } = await supabase.from('vendor_contacts').select('name, legal_name').eq('id', app.vendor_contact_id).maybeSingle();
+    if (v) addressee = (v.legal_name as string | null) || (v.name as string);
+  }
+  const now = new Date();
   return {
+    addressee,
+    issued_on_wareki: warekiDate(now),
+    fiscal_year: String(new Date(now.getTime() + 9 * 3600_000).getUTCFullYear()),
     company_name: app.company_name ?? '',
     representative_name: app.representative_name ?? '',
     address: app.address ?? '',
@@ -78,8 +88,10 @@ export async function createContractForCase(applicationId: string): Promise<Cont
       token: randomBytes(32).toString('base64url'),
       status: 'sent',
       title: CONTRACT_TITLE,
-      body_html: renderContractHtml(CONTRACT_TEMPLATE, vars),
+      body_html: alignConsentHtml(renderContractHtml(CONTRACT_TEMPLATE, vars)),
       template_version: TEMPLATE_VERSION,
+      // PDF の「乙」は宛名と同じ会社
+      party_b_name: vars.addressee,
     })
     .select()
     .single();

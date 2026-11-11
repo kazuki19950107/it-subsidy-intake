@@ -80,3 +80,29 @@ describe('請求予定のきっかけの表示名', () => {
     expect(billingTriggerLabel('subsidy_paid')).toBe('補助金の入金後');
   });
 });
+
+import { CONTRACT_TEMPLATE, alignConsentHtml, warekiDate } from '@/lib/contracts/template';
+describe('同意書（ひな形どおり）', () => {
+  it('令和の日付（日本時間）', () => {
+    expect(warekiDate(new Date('2026-05-10T16:00:00Z'))).toBe('令和8年5月11日');
+  });
+  it('宛名・年・会社の情報が入り、日付は右・記は中央・以上は右', () => {
+    const html = alignConsentHtml(
+      renderContractHtml(CONTRACT_TEMPLATE, {
+        issued_on_wareki: '令和8年11月12日',
+        addressee: '株式会社AzCreate',
+        fiscal_year: '2026',
+        company_name: 'サンプル株式会社',
+        address: '東京都千代田区',
+        representative_name: '山田 太郎',
+      }),
+    );
+    expect(html.startsWith('<p style="text-align:right">令和8年11月12日</p>')).toBe(true);
+    expect(html).toContain('<p>株式会社AzCreate　御中</p>');
+    expect(html).toContain('私は2026年のIT導入補助金の申請に関して');
+    expect(html).toContain('<p style="text-align:center">記</p>');
+    expect(html).toContain('<p style="text-align:right">以上</p>');
+    expect(html).toContain('名　称　サンプル株式会社');
+    expect(html).not.toContain('（未入力）');
+  });
+});

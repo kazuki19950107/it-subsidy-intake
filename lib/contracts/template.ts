@@ -1,8 +1,8 @@
-// 同意書の文面（仮）。後から差し替える前提で、差し込む項目は {{変数名}} で書く。
-// 文面を変えたら TEMPLATE_VERSION も上げること（締結済みの契約には作成時の本文がそのまま残る）。
+// 同意書の文面（2026-11 にいただいたひな形「同意書 株式会社〇〇.docx」をもとにしたもの）。差し込む項目は {{変数名}} で書く。
+// 文面を変えたら TEMPLATE_VERSION も上げること（締結済みの同意書には作成時の本文がそのまま残る）。
 
-export const TEMPLATE_VERSION = 'draft-2026-11-11';
-export const CONTRACT_TITLE = '補助金申請代行に関する同意書';
+export const TEMPLATE_VERSION = 'consent-2026-11-12';
+export const CONTRACT_TITLE = '同意書';
 
 export type ContractVars = {
   company_name: string;
@@ -14,6 +14,12 @@ export type ContractVars = {
   fee_description: string;
   issued_on: string;
   agent_name: string;
+  /** 宛名（案件のベンダーの正式な会社名。無ければ自社名） */
+  addressee: string;
+  /** 作成日（令和） */
+  issued_on_wareki: string;
+  /** 申請する年（西暦） */
+  fiscal_year: string;
 };
 
 export const CONTRACT_VAR_LABELS: Record<keyof ContractVars, string> = {
@@ -26,32 +32,56 @@ export const CONTRACT_VAR_LABELS: Record<keyof ContractVars, string> = {
   fee_description: 'フィー',
   issued_on: '作成日',
   agent_name: '申請代行会社',
+  addressee: '宛名',
+  issued_on_wareki: '作成日（令和）',
+  fiscal_year: '申請する年',
 };
 
-/** 仮の文面。段落は空行で区切る。{{...}} は差し込み */
-export const CONTRACT_TEMPLATE = `{{company_name}}（以下「甲」という）と{{agent_name}}（以下「乙」という）は、甲が申請するAI導入補助金（以下「本補助金」という）の申請手続きについて、次のとおり同意する。
+/** 段落は空行で区切る。{{...}} は差し込み */
+export const CONTRACT_TEMPLATE = `{{issued_on_wareki}}
 
-第1条（目的）
-甲は、乙に対し、本補助金（{{round}}・{{tool_name}}）の申請に必要な手続きの支援および代行を依頼し、乙はこれを受託する。
+{{addressee}}　御中
 
-第2条（甲の情報）
-所在地: {{address}}
-代表者: {{representative_name}}
-法人番号: {{corporate_number}}
+私は{{fiscal_year}}年のIT導入補助金の申請に関して、以下の内容を確認した上で申請する事に同意いたします。
 
-第3条（甲の協力）
-甲は、申請に必要な書類および情報を、乙の求めに応じて速やかに、かつ正確に提供する。
+記
 
-第4条（報酬）
-甲は、乙に対し、{{fee_description}}支払う。
+・過去にIT導入補助金を利用して類似のソフトウェアを導入していないこと。
 
-第5条（秘密保持）
-乙は、本同意書に基づき知り得た甲の情報を、本補助金の申請以外の目的に使用せず、第三者に開示しない。
+・ITツールの納品後はキャンセル及び返金は行わないこと。
 
-第6条（その他）
-本同意書に定めのない事項は、甲乙協議のうえ定める。
+・導入するITツールを2年以内に解約した場合、補助金全額返金になる可能性があること。
 
-作成日: {{issued_on}}`;
+・導入したITツールを利用していなかった場合、補助金全額返金になる可能性があること。
+
+・導入するITツールは実質無料などではないこと。
+
+・補助金を利用して、お金の返金や割引、商品券などによる還元は一切行わないこと。
+
+・IT導入補助金の申請には申請者自身で、申請マイページの開設や申請マイページから申込入力を行うこと。
+
+・補助金交付後から2年以内に会社の倒産、事業廃止、代表者変更などがあった場合は補助金全額返金になる可能性があること。
+
+以上
+
+住　所　{{address}}
+名　称　{{company_name}}
+代表者　{{representative_name}}`;
+
+/** 同意書の見た目をひな形に合わせる（日付は右・「記」は中央・「以上」は右） */
+export function alignConsentHtml(html: string): string {
+  return html
+    .replace(/^<p>/, '<p style="text-align:right">')
+    .replace('<p>記</p>', '<p style="text-align:center">記</p>')
+    .replace('<p>以上</p>', '<p style="text-align:right">以上</p>');
+}
+
+/** 令和の日付（例: 令和8年5月11日）。日本時間で数える */
+export function warekiDate(d: Date): string {
+  const j = new Date(d.getTime() + 9 * 3600_000);
+  const y = j.getUTCFullYear() - 2018;
+  return `令和${y}年${j.getUTCMonth() + 1}月${j.getUTCDate()}日`;
+}
 
 function escapeHtml(s: string): string {
   return s
