@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowRight, FileCheck, Shield, Timer } from 'lucide-react';
+import { ArrowRight, FileCheck, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -46,16 +46,6 @@ export default async function LandingPage({
               <h3 className="font-semibold text-charcoal">書類をアップロードするだけ</h3>
               <p className="text-sm text-mute mt-1">
                 スマホのカメラで撮影した画像や、PCに保存されている PDF・画像をそのままご提出いただけます。AIが自動で書類内容を読み取ります。
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Shield className="w-5 h-5 text-teal shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-charcoal">GビズIDのパスワードは聞きません</h3>
-              <p className="text-sm text-mute mt-1">
-                本フォームでは絶対にパスワードを入力させることはありません。取得状況のみお伺いします。
               </p>
             </div>
           </div>

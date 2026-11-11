@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useAutoSave } from '@/lib/hooks/useAutoSave';
 
 type Props = {
@@ -31,6 +31,7 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
     handleSubmit,
     watch,
     getValues,
+    setValue,
     formState: { errors },
   } = useForm<CommonInfoInput>({
     resolver: zodResolver(commonInfoSchema),
@@ -181,40 +182,33 @@ export function CommonInfoForm({ token, applicationId, applicantType, defaultVal
       <div className="space-y-3 p-4 rounded-md bg-off-white border border-rule">
         <Label required>GビズID プライムの取得状況</Label>
         <RadioGroup
-          defaultValue={defaultValues?.gbiz_id_status ?? 'none'}
+          value={gbizStatus}
           onValueChange={(v) => {
-            const input = document.getElementById('gbiz_hidden') as HTMLInputElement;
-            if (input) input.value = v;
-            autoSave({ gbiz_id_status: v as CommonInfoInput['gbiz_id_status'] });
+            // フォームの値も変える（「次へ」で送る値と、選んだ表示をそろえる）
+            const value = v as CommonInfoInput['gbiz_id_status'];
+            setValue('gbiz_id_status', value, { shouldDirty: true, shouldValidate: true });
+            autoSave({ gbiz_id_status: value });
           }}
         >
           <div className="flex items-start gap-2">
-            <RadioGroupItem value="acquired" id="gbiz-acquired" {...register('gbiz_id_status')} />
+            <RadioGroupItem value="acquired" id="gbiz-acquired" />
             <Label htmlFor="gbiz-acquired" className="font-normal cursor-pointer">
               取得済み
             </Label>
           </div>
           <div className="flex items-start gap-2">
-            <RadioGroupItem value="applying" id="gbiz-applying" {...register('gbiz_id_status')} />
+            <RadioGroupItem value="applying" id="gbiz-applying" />
             <Label htmlFor="gbiz-applying" className="font-normal cursor-pointer">
               申請中
             </Label>
           </div>
           <div className="flex items-start gap-2">
-            <RadioGroupItem value="none" id="gbiz-none" {...register('gbiz_id_status')} />
+            <RadioGroupItem value="none" id="gbiz-none" />
             <Label htmlFor="gbiz-none" className="font-normal cursor-pointer">
               未取得
             </Label>
           </div>
         </RadioGroup>
-
-        <Alert variant="info" className="mt-3">
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-xs">
-            セキュリティのため、当フォームでは GビズID のパスワードは絶対にお聞きしません。
-            取得状況のみご選択ください。
-          </AlertDescription>
-        </Alert>
 
         {gbizStatus !== 'acquired' && (
           <Alert variant="warning" className="mt-3">
