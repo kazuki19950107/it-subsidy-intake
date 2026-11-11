@@ -318,11 +318,35 @@ async function runSearch(page: Page, fiscalYear: string, prevSignature: string):
 }
 
 /** ページ番号リンク（1,2,3...）を辿って全行を集める。ページ送りは画面内切替で通信なし。 */
-async function collectAllRows(page: Page): Promise<string[][]> {
+async function collectAllRows(
+  page: Page,
+  onPage?: (rows: string[][], restore: () => Promise<void>) => Promise<void>,
+): Promise<string[][]> {
   const all: string[][] = [];
   const first = await readRows(page);
   if (first.length === 0) return all;
   all.push(...first);
+  // 詳細を読みに行って戻ったあと、同じページを表示し直す
+  const gotoPage = async (n: number, expectedFirst: string) => {
+    if ((await firstRowNo(page)) === expectedFirst) return;
+    if (n > 1) {
+      await page.locator('a', { hasText: new RegExp(`^${n}$`) }).locator('visible=true').first().click();
+      await page
+        .waitForFunction(
+          (exp) => {
+            const td = document.querySelector('table tbody tr td');
+            return !!td && (td as HTMLElement).innerText.trim() === exp;
+          },
+          expectedFirst,
+          { timeout: 15_000 },
+        )
+        .catch(() => {});
+    }
+  };
+  if (onPage) {
+    const f1 = await firstRowNo(page);
+    await onPage(first, () => gotoPage(1, f1));
+  }
 
   const pageNumbers = await page.$$eval('a', (as) =>
     Array.from(
@@ -355,7 +379,12 @@ async function collectAllRows(page: Page): Promise<string[][]> {
         { timeout: 15_000 },
       )
       .catch(() => {});
-    all.push(...(await readRows(page)));
+    const rowsN = await readRows(page);
+    all.push(...rowsN);
+    if (onPage) {
+      const fN = await firstRowNo(page);
+      await onPage(rowsN, () => gotoPage(n, fN));
+    }
   }
   return all;
 }
@@ -388,22 +417,31 @@ export type ScrapeResult = {
   rows: PortalRow[];
   /** 詳細（交付申請 確認）を読んだ案件。交付申請番号 → 内容 */
   details: Record<string, PortalDetail>;
+  /** 詳細の読み取りについてのお知らせ（年度の失敗とは別） */
+  detailNotes: string[];
   /** 年度単位で失敗したが全体は続行した場合のメッセージ */
   warnings: string[];
   yearsSearched: string[];
 };
 
 export type ScrapeOptions = {
-  /** 一覧を取ったあと、詳細を読む交付申請番号を選ぶ（並び順に読む） */
-  pickDetails?: (rows: PortalRow[]) => string[];
+  /** 一覧の行ごとに、詳細（交付申請 確認）を読むかを決める */
+  shouldReadDetail?: (row: PortalRow) => boolean;
   /** 詳細を読むのに使ってよい時間（ミリ秒）。超えたら残りは次回 */
   detailBudgetMs?: number;
+  /** 1 回で読む詳細の上限 */
+  maxDetails?: number;
 };
 
-/** 「交付申請 確認」画面を開いて読み取る。開けなかった・別の画面だったときは null */
-async function fetchDetail(page: Page, applicationNo: string): Promise<PortalDetail | null> {
-  await page.goto(`${PORTAL_BASE}/IT-113/?app_id=${encodeURIComponent(applicationNo)}`, { waitUntil: 'domcontentloaded' });
-  await visibleText(page, '補助金申請額合計').first().waitFor({ timeout: 15_000 }).catch(() => {});
+/**
+ * 一覧の行の「申請内容確認」を押して「交付申請 確認」画面を読み、「戻る」で一覧に戻る。
+ * ポータルは URL を直接開くとログイン画面に戻されるため、必ず一覧のボタンから開く。
+ * 「戻る」で戻ると検索結果はそのまま残る（2026-11 に確認）。
+ */
+async function readDetailFromList(page: Page, applicationNo: string): Promise<PortalDetail | null> {
+  const row = page.locator('table tbody tr', { hasText: applicationNo }).first();
+  await row.getByText('申請内容確認', { exact: true }).first().click({ timeout: 10_000 });
+  await visibleText(page, '補助金申請額合計').first().waitFor({ timeout: 20_000 });
   const { text, toolRows } = await page.evaluate(() => {
     const tables = Array.from(document.querySelectorAll('table'));
     const t = tables.find((x) => /ITツール名/.test(x.innerText) && /カテゴリー/.test(x.innerText));
@@ -414,7 +452,10 @@ async function fetchDetail(page: Page, applicationNo: string): Promise<PortalDet
       : [];
     return { text: document.body.innerText, toolRows: rows };
   });
-  // 別の案件や別の画面が出ていないか（番号が本文にあるか）を確かめる
+  // 一覧に戻る（検索結果は残る）
+  await visibleText(page, '戻る').first().click({ timeout: 10_000 });
+  await page.locator('table tbody tr').first().waitFor({ state: 'visible', timeout: 20_000 });
+  // 別の案件や別の画面を読んでいないか（番号が本文にあるか）を確かめる
   if (!text.replace(/\s/g, '').includes(applicationNo)) return null;
   return parsePortalDetail(text, toolRows);
 }
@@ -449,6 +490,30 @@ export async function scrapePortalCases(
 
     const map = new Map<string, PortalRow>();
     const warnings: string[] = [];
+    // 詳細（交付申請 確認）: 一覧の各ページで、対象の行だけボタンから開いて読む
+    const details: Record<string, PortalDetail> = {};
+    const detailNotes: string[] = [];
+    const maxDetails = options.maxDetails ?? 10;
+    let detailTargets = 0;
+    let detailStarted: number | null = null;
+    const readDetailsOnPage = async (pageCells: string[][], year: string, restore: () => Promise<void>) => {
+      if (!options.shouldReadDetail) return;
+      for (const c of pageCells) {
+        const row = toPortalRow(c, year);
+        if (!row || details[row.application_no] || !options.shouldReadDetail(row)) continue;
+        detailTargets++;
+        if (detailStarted == null) detailStarted = Date.now();
+        if (Object.keys(details).length >= maxDetails || Date.now() - detailStarted > (options.detailBudgetMs ?? 30_000)) continue;
+        try {
+          const d = await readDetailFromList(page, row.application_no);
+          if (d) details[row.application_no] = d;
+        } catch (e) {
+          detailNotes.push(`詳細 ${row.application_no}: ${(e as Error).message.split('\n')[0].slice(0, 120)}`);
+          await debugShot(page, `detail-${row.application_no}-failed`);
+        }
+        await restore().catch(() => {});
+      }
+    };
     const yearsSearched: string[] = [];
     let rowsSeen = 0;
     let prevSignature = '';
@@ -458,7 +523,7 @@ export async function scrapePortalCases(
         yearsSearched.push(year);
         if (!hit) continue;
         prevSignature = await resultSignature(page);
-        const cells = await collectAllRows(page);
+        const cells = await collectAllRows(page, (pageCells, restore) => readDetailsOnPage(pageCells, year, restore));
         rowsSeen += cells.length;
         for (const c of cells) {
           const row = toPortalRow(c, year);
@@ -483,29 +548,16 @@ export async function scrapePortalCases(
       );
     }
 
-    // 紐付いた案件などの詳細（ツール・金額）を読む。時間を区切り、残りは次回に回す
     const rows = Array.from(map.values());
-    const details: Record<string, PortalDetail> = {};
-    const targets = options.pickDetails ? options.pickDetails(rows) : [];
-    const deadline = Date.now() + (options.detailBudgetMs ?? 60_000);
-    for (const no of targets) {
-      if (Date.now() > deadline) {
-        warnings.push(`詳細は時間の都合で ${Object.keys(details).length}/${targets.length}件 まで読みました（残りは次回）`);
-        break;
-      }
-      try {
-        const d = await fetchDetail(page, no);
-        if (d) details[no] = d;
-      } catch (e) {
-        warnings.push(`詳細 ${no}: ${(e as Error).message.split('\n')[0].slice(0, 120)}`);
-        await debugShot(page, `detail-${no}-failed`);
-      }
+    const read = Object.keys(details).length;
+    if (detailTargets > read && detailNotes.length === 0) {
+      detailNotes.push(`申請内容は ${read}/${detailTargets}件 読みました（残りは次回の同期で）`);
     }
 
     // セッションを残さない
     await visibleText(page, 'ログアウト').first().click({ timeout: 5_000 }).catch(() => {});
 
-    return { rows, details, warnings, yearsSearched };
+    return { rows, details, warnings, detailNotes, yearsSearched };
   } finally {
     await browser.close().catch(() => {});
   }

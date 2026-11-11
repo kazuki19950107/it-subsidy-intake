@@ -121,22 +121,19 @@ export async function syncVendorPortal(
       .not('portal_application_no', 'is', null);
     const linkedNos = new Set(((linkedRows ?? []) as Array<{ portal_application_no: string }>).map((r) => r.portal_application_no));
 
-    const { rows, details, warnings, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password, {
-      // 詳細がまだ無い・状態が変わった・30日以上たった案件だけ、1回 10件まで
-      pickDetails: (list) =>
-        list
-          .filter((r) => linkedNos.has(r.application_no))
-          .filter((r) => {
-            const prev = prevByNo.get(r.application_no);
-            const d = detailFromRaw(prev?.raw);
-            if (!d) return true;
-            if ((prev?.status ?? '') !== (r.status ?? '')) return true;
-            return Date.now() - new Date(d.fetched_at).getTime() > 30 * 86400_000;
-          })
-          .map((r) => r.application_no)
-          .slice(0, 10),
-      // 3社続けても cron の上限（300秒）に収まるよう、1社あたり30秒まで
-      detailBudgetMs: 30_000,
+    const { rows, details, warnings, detailNotes, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password, {
+      // 紐付いた案件のうち、詳細がまだ無い・状態が変わった・30日以上たったものだけ、1回 10件まで
+      shouldReadDetail: (r) => {
+        if (!linkedNos.has(r.application_no)) return false;
+        const prev = prevByNo.get(r.application_no);
+        const d = detailFromRaw(prev?.raw);
+        if (!d) return true;
+        if ((prev?.status ?? '') !== (r.status ?? '')) return true;
+        return Date.now() - new Date(d.fetched_at).getTime() > 30 * 86400_000;
+      },
+      maxDetails: 10,
+      // 3社続けても cron の上限（300秒）に収まるよう、1社あたり40秒まで
+      detailBudgetMs: 40_000,
     });
     const now = new Date().toISOString();
     const portalChanges = diffPortalRows(previous, rows);
@@ -229,7 +226,11 @@ export async function syncVendorPortal(
         rows_count: rows.length,
         matched_count: matched,
         // 成功扱いだが一部年度で失敗した場合はここに残す（画面で注意表示）
-        error: warnings.length > 0 ? `一部の年度で失敗: ${warnings.join(' / ')}`.slice(0, 2000) : null,
+        error:
+          [warnings.length > 0 ? `一部の年度で失敗: ${warnings.join(' / ')}` : null, ...detailNotes]
+            .filter(Boolean)
+            .join(' / ')
+            .slice(0, 2000) || null,
       })
       .eq('id', runId);
 
