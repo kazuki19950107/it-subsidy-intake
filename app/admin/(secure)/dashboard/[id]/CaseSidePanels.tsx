@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { BillingSchedule, LineGroup, StatusHistory } from '@/lib/supabase/types';
-import { ACTOR_LABELS, BILLING_TIMING_LABELS, MILESTONE_LABELS, type BillingTiming, type Milestone } from '@/lib/cases/constants';
+import { ACTOR_LABELS, MILESTONE_LABELS, billingTriggerLabel, type Milestone } from '@/lib/cases/constants';
+import { CreateBillingForm } from './CreateBillingForm';
 
 function jst(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', dateStyle: 'short', timeStyle: 'short' }) : '-';
@@ -59,7 +60,15 @@ export function LineGroupsPanel({ groups }: { groups: LineGroup[] }) {
   );
 }
 
-export function BillingPanel({ schedule }: { schedule: BillingSchedule | null }) {
+export function BillingPanel({
+  schedule,
+  applicationId,
+  defaultAmount,
+}: {
+  schedule: BillingSchedule | null;
+  applicationId: string;
+  defaultAmount: number | null;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -67,12 +76,15 @@ export function BillingPanel({ schedule }: { schedule: BillingSchedule | null })
       </CardHeader>
       <CardContent className="text-sm space-y-1">
         {!schedule ? (
-          <div className="text-mute">請求タイミングに達すると、請求予定が自動で作られます。</div>
+          <div className="space-y-2">
+            <div className="text-mute">請求タイミングに達すると、請求予定が自動で作られます。待たずに請求したいときは、ここで作れます。</div>
+            <CreateBillingForm applicationId={applicationId} defaultAmount={defaultAmount} />
+          </div>
         ) : (
           <>
             <div>金額: {schedule.amount != null ? `${schedule.amount.toLocaleString()}円` : '未定'}</div>
             <div>
-              発生: {schedule.occurred_on}（{BILLING_TIMING_LABELS[schedule.trigger as BillingTiming] ?? schedule.trigger}）
+              発生: {schedule.occurred_on}（{billingTriggerLabel(schedule.trigger)}）
             </div>
             <div>
               請求書発行: {schedule.invoice_issued_on ?? '未発行'}

@@ -7,7 +7,7 @@ import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InvoiceDialog } from '@/components/admin/InvoiceDialog';
 import type { BillingSchedule } from '@/lib/supabase/types';
-import { BILLING_TIMING_LABELS, type BillingTiming } from '@/lib/cases/constants';
+import { billingTriggerLabel } from '@/lib/cases/constants';
 import { useTableSort, type SortColumns } from '@/lib/hooks/useTableSort';
 import { SortButton } from '@/components/ui/SortableHead';
 
@@ -92,7 +92,7 @@ function Row({ row, config }: { row: BillingRow; config: FeeInvoiceConfig }) {
       </td>
       <td className="py-2 pr-2 text-xs whitespace-nowrap">
         {row.occurred_on}
-        <div className="text-mute">{BILLING_TIMING_LABELS[row.trigger as BillingTiming] ?? row.trigger}</div>
+        <div className="text-mute">{billingTriggerLabel(row.trigger)}</div>
       </td>
       <td className="py-2 pr-2">
         <input className={`${input} w-28 text-right`} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="金額" />

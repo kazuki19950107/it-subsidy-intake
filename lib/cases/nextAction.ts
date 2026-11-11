@@ -191,7 +191,7 @@ export function caseSteps(s: NextActionInput): Step[] {
       done: !!s.billing,
       who: 'auto',
       action: s.grantDecided
-        ? '請求のタイミング（補助金の入金など）を待っています'
+        ? '請求のタイミング（補助金の入金など）を待っています（待たずに請求するなら、請求の欄で手で作れます）'
         : '交付決定を待っています（毎朝ポータルから自動で取り込みます）',
       target: '#billing',
       targetLabel: '請求を見る',

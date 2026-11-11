@@ -271,13 +271,41 @@ export async function recalcFeesAndBilling(applicationId: string, actor: Actor):
     });
     await addHistory(applicationId, 'billing', null, `請求予定を作成（${amount != null ? amount.toLocaleString() + '円' : '金額未定'}）`, actor);
     await ensureSystemCheck(applicationId, SYSTEM_CHECK_KEYS.invoiceIssue, actor);
-  } else if (!existing.invoice_issued_on && existing.amount !== amount) {
+  } else if (existing.trigger !== 'manual' && !existing.invoice_issued_on && existing.amount !== amount) {
+    // 手で作った請求予定の金額は、自動の計算で上書きしない
     await supabase
       .from('billing_schedules')
       .update({ amount, updated_at: new Date().toISOString() })
       .eq('id', existing.id);
     await addHistory(applicationId, 'billing_amount', existing.amount, amount, { type: 'system' });
   }
+}
+
+/**
+ * 請求予定を手で作る（請求タイミングを待たずに請求したいとき）。すでにあれば作らない。
+ * 金額を省くと、フィー確定額 → 見込み額の順に使う。
+ */
+export async function createManualBilling(
+  applicationId: string,
+  input: { amount: number | null; occurred_on: string | null },
+  actor: Actor,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const supabase = createServiceRoleClient();
+  const { data: existing } = await supabase.from('billing_schedules').select('id').eq('application_id', applicationId).maybeSingle();
+  if (existing) return { ok: false, reason: 'この案件にはもう請求予定があります（売上・請求の画面で直せます）' };
+  const { data: app } = await supabase.from('applications').select('fee_confirmed, fee_estimated').eq('id', applicationId).maybeSingle();
+  if (!app) return { ok: false, reason: '案件が見つかりません' };
+  const amount = input.amount ?? (app.fee_confirmed as number | null) ?? (app.fee_estimated as number | null) ?? null;
+  const { error } = await supabase.from('billing_schedules').insert({
+    application_id: applicationId,
+    amount,
+    trigger: 'manual',
+    occurred_on: input.occurred_on ?? jstToday(),
+  });
+  if (error) return { ok: false, reason: error.message };
+  await addHistory(applicationId, 'billing', null, `請求予定を手で作成（${amount != null ? amount.toLocaleString() + '円' : '金額未定'}）`, actor);
+  await ensureSystemCheck(applicationId, SYSTEM_CHECK_KEYS.invoiceIssue, actor);
+  return { ok: true };
 }
 
 /** 最初の段階（並び順が最小） */

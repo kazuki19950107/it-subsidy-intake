@@ -72,3 +72,11 @@ describe('書類の判定設定', () => {
     expect(requiredDocsFor('sole_proprietor')).toEqual(['id_document', 'tax_return', 'blue_form', 'tax_cert_2']);
   });
 });
+
+import { billingTriggerLabel } from '@/lib/cases/constants';
+describe('請求予定のきっかけの表示名', () => {
+  it('手で作ったものと、自動のタイミング', () => {
+    expect(billingTriggerLabel('manual')).toBe('手動で作成');
+    expect(billingTriggerLabel('subsidy_paid')).toBe('補助金の入金後');
+  });
+});

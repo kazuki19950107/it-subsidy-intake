@@ -250,7 +250,11 @@ export default async function ApplicationDetailPage({
           <LineGroupsPanel groups={lineGroups} />
         </div>
         <div id="billing" className="scroll-mt-20">
-          <BillingPanel schedule={billingRow} />
+          <BillingPanel
+            schedule={billingRow}
+            applicationId={application.id}
+            defaultAmount={application.fee_confirmed ?? application.fee_estimated ?? null}
+          />
         </div>
         <div id="vendor-docs" className="scroll-mt-20 md:col-span-2">
           <VendorDocsPanel

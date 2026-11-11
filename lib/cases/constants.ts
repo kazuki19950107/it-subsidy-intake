@@ -42,6 +42,12 @@ export const BILLING_TIMING_LABELS: Record<BillingTiming, string> = {
   subsidy_paid: '補助金の入金後',
 };
 
+/** 請求予定のきっかけの表示名（手で作ったものは manual） */
+export function billingTriggerLabel(trigger: string): string {
+  if (trigger === 'manual') return '手動で作成';
+  return (BILLING_TIMING_LABELS as Record<string, string>)[trigger] ?? trigger;
+}
+
 export const SYSTEM_CHECK_KEYS = {
   invoiceIssue: 'invoice_issue',
   paymentReceived: 'payment_received',
