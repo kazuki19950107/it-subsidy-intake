@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { anthropic, MODEL, MAX_TOKENS } from '../client';
+import { parseLenient } from './repair';
 
 export type ExtractionResult<T> = {
   data: T;
@@ -56,7 +57,9 @@ export async function extractFromText<T>({
     );
   }
 
-  const validated = schema.parse(parsed);
+  // 形が少し違う答え（「その3の3」・"1,234円"・抜けた項目など）は直して受け取る
+  const { data: validated, repaired } = parseLenient(schema, parsed);
+  if (repaired.length) console.warn('[extract] AIの答えを直しました:', repaired.join(' / '));
   const confidence =
     typeof (parsed as Record<string, unknown>)._confidence === 'number'
       ? ((parsed as Record<string, unknown>)._confidence as number)

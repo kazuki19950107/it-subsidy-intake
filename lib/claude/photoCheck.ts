@@ -1,6 +1,7 @@
 import 'server-only';
 import sharp from 'sharp';
 import { z } from 'zod';
+import { parseLenient } from './extractors/repair';
 import { anthropic, MODEL } from './client';
 import { PHOTO_CORNERS_FIELD, type CrossCheckResult } from '@/lib/validation/crossCheck';
 
@@ -106,10 +107,14 @@ export async function checkPhotoCorners(buffer: Buffer): Promise<PhotoCheckResul
 
   const textBlock = response.content.find((b) => b.type === 'text');
   const jsonMatch = textBlock?.type === 'text' ? textBlock.text.match(/\{[\s\S]*\}/) : null;
-  const parsed = jsonMatch ? PhotoCheckSchema.safeParse(safeJson(jsonMatch[0])) : null;
-  if (!parsed?.success) return unchecked(usage);
-
-  const data = parsed.data;
+  // 形が少し違う答え（角の名前の書き方など）は直して受け取る。直せなければ判定なし
+  let data: z.infer<typeof PhotoCheckSchema>;
+  try {
+    if (!jsonMatch) return unchecked(usage);
+    data = parseLenient(PhotoCheckSchema, safeJson(jsonMatch[0])).data;
+  } catch {
+    return unchecked(usage);
+  }
   const validationErrors: CrossCheckResult[] = [];
   if (data.is_photo_of_paper && !data.all_corners_visible) {
     const which = data.missing_corners.length > 0 ? `（${data.missing_corners.join('・')}）` : '';

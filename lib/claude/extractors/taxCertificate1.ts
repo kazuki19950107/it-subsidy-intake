@@ -28,7 +28,7 @@ OCRで抽出されたテキストから、指定されたJSONスキーマに従�
 OCRノイズで読み違えと推測される箇所は無理に値を入れず null にしてください。`;
 
 export const USER_PROMPT = `以下のOCRテキストは納税証明書です。以下の項目を抽出してください：
-- certificate_type: 証明書の種類（「その1」「その2」「その3」「その4」のいずれか。判別できなければ "unknown"）
+- certificate_type: 証明書の種類（「その1」「その2」「その3」「その4」のいずれか。「その3の2」「その3の3」は「その3」と答える。判別できなければ "unknown"）
 - tax_category: 税目（「法人税」「消費税」「源泉所得税」「その他」「unknown」のいずれか）
 - taxpayer_address: 納税者の住所
 - taxpayer_name: 納税者の氏名または法人名
