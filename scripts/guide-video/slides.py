@@ -161,10 +161,89 @@ def line_notify(img, W, top, bottom):
         yy += 96
 
 
+PHASES = [
+    ("0", "はじめの準備", "最初に1回だけ", "設定・ベンダー・社内用LINE"),
+    ("1", "受付〜同意書", "新しいお客様が来たら", "案件登録・同意書・グループLINE"),
+    ("2", "書類の回収", "同意書のあと", "書類提出フォーム・AIの判定"),
+    ("3", "申請〜採択", "書類がそろったら", "ポータルで申請・毎朝の同期"),
+    ("4", "採択後の契約・請求", "採択されたら", "ベンダー→お客様の契約・請求"),
+    ("5", "交付決定〜入金", "交付決定・補助金の入金", "フィーをベンダーへ請求・入金"),
+]
+
+
+def phases(img, W, top, bottom):
+    d = ImageDraw.Draw(img)
+    slide_title(d, W, top + 24, "6つのフェーズで進みます", "いまのフェーズの「やること」だけ見れば大丈夫です")
+    cw, chh, gap = 540, 170, 40
+    x0 = (W - (cw * 3 + gap * 2)) // 2
+    y0 = top + 250
+    for i, (no, title, when, sub) in enumerate(PHASES):
+        x = x0 + (i % 3) * (cw + gap)
+        y = y0 + (i // 3) * (chh + gap)
+        card(d, x, y, x + cw, y + chh, border=INK if no != "0" else RULE, width=3 if no != "0" else 2)
+        d.ellipse([x + 26, y + 50, x + 96, y + 120], fill=INK if no != "0" else (244, 244, 245), outline=RULE)
+        center_text(d, x + 61, y + 60, no, f(FONT_B, 40), (255, 255, 255) if no != "0" else INK)
+        d.text((x + 122, y + 28), when, font=f(FONT_R, 24), fill=MUTE)
+        d.text((x + 122, y + 62), title, font=f(FONT_B, 38), fill=INK)
+        d.text((x + 122, y + 116), sub, font=f(FONT_R, 24), fill=MUTE)
+    center_text(d, W / 2, y0 + 2 * (chh + gap) + 30, "迷ったら、案件の詳細のいちばん上の「次にやること」を見てください", f(FONT_B, 32), BRAND)
+
+
+def flow_slide(img, W, top, title, sub, steps):
+    """横に並んだ手順（だれが・何を）"""
+    d = ImageDraw.Draw(img)
+    slide_title(d, W, top + 30, title, sub)
+    n = len(steps)
+    cw, gap = 360, 60
+    x0 = (W - (cw * n + gap * (n - 1))) // 2
+    y = top + 290
+    for i, (who, head, body) in enumerate(steps):
+        x = x0 + i * (cw + gap)
+        last = i == n - 1
+        card(d, x, y, x + cw, y + 300, border=LINE_GREEN if last else RULE, width=4 if last else 2)
+        wf = f(FONT_B, 24)
+        ww = d.textlength(who, font=wf) + 28
+        col = {"社内": INK, "顧客": (255, 255, 255), "自動": (224, 242, 254)}.get(who, INK)
+        tcol = {"社内": (255, 255, 255), "顧客": INK, "自動": (3, 105, 161)}.get(who, (255, 255, 255))
+        d.rounded_rectangle([x + 24, y + 24, x + 24 + ww, y + 64], radius=20, fill=col, outline=INK if who == "顧客" else col, width=2)
+        d.text((x + 38, y + 30), who, font=wf, fill=tcol)
+        yy = y + 90
+        for ln in wrap_lines(d, head, f(FONT_B, 34), cw - 48):
+            d.text((x + 24, yy), ln, font=f(FONT_B, 34), fill=INK)
+            yy += 46
+        yy += 8
+        for ln in wrap_lines(d, body, f(FONT_R, 26), cw - 48):
+            d.text((x + 24, yy), ln, font=f(FONT_R, 26), fill=MUTE)
+            yy += 38
+        if not last:
+            arrow(d, x + cw + 8, y + 150, x + cw + gap - 8)
+
+
+def vendor_docs(img, W, top, bottom):
+    flow_slide(img, W, top, "採択されたら：ベンダー → お客様の書類", "発行元はその案件のベンダー。品目と金額はポータルの申請内容から入ります", [
+        ("社内", "案件の詳細を開く", "「ベンダーからお客様への書類」の欄"),
+        ("社内", "契約書を作る", "署名URLができる。紙なら印刷用PDF"),
+        ("社内", "請求書を作る", "ITツールごとの小計＋消費税10%"),
+        ("顧客", "お客様が署名", "締結済みのPDFが残る"),
+    ])
+
+
+def fee_invoice(img, W, top, bottom):
+    flow_slide(img, W, top, "フィーの請求（自社 → ベンダー）", "請求のタイミングが来ると、売上・請求に「請求予定」ができます", [
+        ("自動", "請求予定ができる", "チェック「請求書発行」も追加"),
+        ("社内", "請求書を作る", "宛先は案件のベンダー。PDFができ発行日も入る"),
+        ("自動", "「入金確認」が立つ", "「請求書発行」は完了に"),
+        ("社内", "入金日を入れる", "「入金確認」も完了。案件は終わり"),
+    ])
+
+
 SLIDES = {
     "line_overview": line_overview,
     "line_internal_steps": line_internal_steps,
     "line_naming": line_naming,
     "line_unlinked": line_unlinked,
     "line_notify": line_notify,
+    "phases": phases,
+    "vendor_docs": vendor_docs,
+    "fee_invoice": fee_invoice,
 }
