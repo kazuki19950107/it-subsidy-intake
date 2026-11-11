@@ -3,18 +3,15 @@ import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { DocumentViewer } from '@/components/admin/DocumentViewer';
 import { ValidationList } from '@/components/upload/ValidationBadge';
 import { runCrossCheck } from '@/lib/validation/crossCheck';
 import { formatJpDate } from '@/lib/utils/dateCheck';
 import type { Document, Application } from '@/lib/supabase/types';
 import { RejectControl } from './RejectControl';
-import { LineSummaryBlock } from './LineSummaryBlock';
 import { ApplyUrlBlock } from './ApplyUrlBlock';
 import { AgentShareBlock } from './AgentShareBlock';
 import { AdminMemoEditor } from './AdminMemoEditor';
-import { IntakeContentEditor } from './IntakeContentEditor';
 import { DeleteApplicationControl } from './DeleteApplicationControl';
 import { VendorSelector } from './VendorSelector';
 import { PortalLinkEditor } from './PortalLinkEditor';
@@ -286,15 +283,6 @@ export default async function ApplicationDetailPage({
         initialMemo={application.admin_memo}
       />
 
-      <IntakeContentEditor
-        applicationId={application.id}
-        initial={{
-          recipient_label: application.recipient_label,
-          subsidy_program_label: application.subsidy_program_label,
-          applicant_deadline: application.applicant_deadline,
-          intake_message: application.intake_message,
-        }}
-      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -336,11 +324,7 @@ export default async function ApplicationDetailPage({
             <CardTitle>アクション</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <LineSummaryBlock application={application} crossCheck={crossCheck} />
             <RejectControl applicationId={application.id} status={application.status} />
-            <Button asChild variant="outline" className="w-full">
-              <a href={`/api/admin/export?format=csv`}>CSV出力</a>
-            </Button>
             <DeleteApplicationControl
               applicationId={application.id}
               applicantLabel={

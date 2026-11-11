@@ -1,55 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { toCsv } from '@/lib/cases/exportCsv';
 
-// CSV 出力（MVP：ZIP は一旦 JSON + signed URL のリストで代用）
+// 案件の CSV 出力（案件一覧の右上「CSVで出力」から）。Excel で開けるよう BOM 付き UTF-8
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const supabase = createServiceRoleClient();
   const format = req.nextUrl.searchParams.get('format') ?? 'csv';
 
   const { data, error } = await supabase
     .from('applications')
-    .select('*, vendor:vendor_contacts(name)')
+    .select(
+      '*, vendor:vendor_contacts(name), stage:stages(name), tool:tools(code, name), staff:accounts(name), billing:billing_schedules(amount, invoice_issued_on, paid_on)',
+    )
     .order('updated_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const apps = (data ?? []).map((a) => {
-    const { vendor, ...rest } = a as Record<string, unknown> & {
-      vendor: { name: string } | null;
-    };
-    return { ...rest, vendor_name: vendor?.name ?? '' };
+
+  if (format !== 'csv') return NextResponse.json({ applications: data ?? [] });
+
+  const csv = toCsv((data ?? []) as Array<Record<string, unknown>>);
+  return new NextResponse('﻿' + csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="tsumugi_cases_${new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)}.csv"`,
+    },
   });
-
-  if (format === 'csv') {
-    const headers = [
-      'id',
-      'status',
-      'applicant_type',
-      'company_name',
-      'applicant_name',
-      'email',
-      'phone',
-      'gbiz_id_status',
-      'vendor_name',
-      'submitted_at',
-      'created_at',
-    ];
-    const rows = apps.map((a) =>
-      headers
-        .map((h) => {
-          const v = (a as Record<string, unknown>)[h];
-          if (v == null) return '';
-          const s = String(v).replace(/"/g, '""');
-          return /[",\n]/.test(s) ? `"${s}"` : s;
-        })
-        .join(','),
-    );
-    const csv = [headers.join(','), ...rows].join('\n');
-    return new NextResponse('\ufeff' + csv, {
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="applications_${new Date().toISOString().slice(0, 10)}.csv"`,
-      },
-    });
-  }
-
-  return NextResponse.json({ applications: apps });
 }

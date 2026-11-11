@@ -1,10 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowRight, FileCheck, Shield, Timer, CalendarClock, Sparkles } from 'lucide-react';
+import { ArrowRight, FileCheck, Shield, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { formatJpDate } from '@/lib/utils/dateCheck';
 import { getDocRules } from '@/lib/docRules/settings';
 import { requiredDocsFor } from '@/lib/docRules/defaults';
 
@@ -19,9 +18,7 @@ export default async function LandingPage({
   const supabase = createServiceRoleClient();
   const { data: app } = await supabase
     .from('applications')
-    .select(
-      'recipient_label, subsidy_program_label, applicant_deadline, intake_message',
-    )
+    .select('id')
     .eq('token', token)
     .maybeSingle();
   if (!app) notFound();
@@ -31,22 +28,6 @@ export default async function LandingPage({
 
   return (
     <div className="space-y-8">
-      {(app.recipient_label || app.subsidy_program_label) && (
-        <div className="space-y-1">
-          {app.recipient_label && (
-            <div className="text-base md:text-lg font-semibold text-ink">
-              {app.recipient_label} 様
-            </div>
-          )}
-          {app.subsidy_program_label && (
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold bg-teal-light text-teal-dark rounded-full px-3 py-1">
-              <Sparkles className="w-3 h-3" />
-              {app.subsidy_program_label}
-            </div>
-          )}
-        </div>
-      )}
-
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2">
           IT補助金申請のお手続きへようこそ
@@ -56,32 +37,6 @@ export default async function LandingPage({
           所要時間は <strong className="text-charcoal">約10〜15分</strong> です。
         </p>
       </div>
-
-      {app.intake_message && (
-        <Card className="border-teal/40 bg-teal-light/30">
-          <CardContent className="pt-5 pb-5">
-            <div className="text-xs font-semibold text-teal-dark mb-2">担当者からのメッセージ</div>
-            <p className="text-sm text-charcoal whitespace-pre-wrap leading-relaxed">
-              {app.intake_message}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {app.applicant_deadline && (
-        <div className="flex items-start gap-3 rounded-lg border border-warn/40 bg-warn/5 p-4">
-          <CalendarClock className="w-5 h-5 text-warn shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm font-semibold text-charcoal">提出目安日</div>
-            <div className="text-base font-bold text-warn mt-0.5">
-              {formatJpDate(app.applicant_deadline)} まで
-            </div>
-            <p className="text-xs text-mute mt-1">
-              この日までに書類のご提出をお願いいたします。
-            </p>
-          </div>
-        </div>
-      )}
 
       <Card>
         <CardContent className="pt-6 space-y-4">

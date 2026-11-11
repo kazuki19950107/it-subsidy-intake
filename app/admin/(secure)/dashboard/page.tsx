@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Upload } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { ApplicationList, type ApplicationWithProgress } from '@/components/admin/ApplicationList';
 import { DashboardFilters } from '@/components/admin/DashboardFilters';
@@ -197,13 +197,22 @@ export default async function DashboardPage({
             合計 {counts.total}件・フォーム入力中 {counts.draft}件・書類送信済 {counts.submitted}件・完了 {counts.completed}件
           </p>
         </div>
-        <Link
-          href="/admin/import"
-          className="inline-flex items-center gap-1 text-sm rounded-md border border-rule bg-white px-3 py-1.5 hover:bg-teal-light"
-        >
-          <Upload className="w-4 h-4" />
-          CSVで一括登録
-        </Link>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/admin/export?format=csv"
+            className="inline-flex items-center gap-1 text-sm rounded-md border border-rule bg-white px-3 py-1.5 hover:bg-teal-light"
+          >
+            <Download className="w-4 h-4" />
+            CSVで出力
+          </a>
+          <Link
+            href="/admin/import"
+            className="inline-flex items-center gap-1 text-sm rounded-md border border-rule bg-white px-3 py-1.5 hover:bg-teal-light"
+          >
+            <Upload className="w-4 h-4" />
+            CSVで一括登録
+          </Link>
+        </div>
       </div>
 
       <DashboardFilters

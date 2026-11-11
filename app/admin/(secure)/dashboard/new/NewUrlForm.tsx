@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -44,10 +43,6 @@ export function NewUrlForm({
   const [staffId, setStaffId] = useState('');
   const [memo, setMemo] = useState('');
   const [vendorId, setVendorId] = useState('');
-  const [recipientLabel, setRecipientLabel] = useState('');
-  const [subsidyProgramLabel, setSubsidyProgramLabel] = useState('');
-  const [applicantDeadline, setApplicantDeadline] = useState(''); // datetime-local
-  const [intakeMessage, setIntakeMessage] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ apply_url: string; contract_url: string | null; id: string } | null>(null);
@@ -60,11 +55,6 @@ export function NewUrlForm({
     setError(null);
     setResult(null);
     try {
-      // datetime-local は "YYYY-MM-DDTHH:mm"。ISO化（ローカル時刻として解釈）。
-      const deadlineIso = applicantDeadline
-        ? new Date(applicantDeadline).toISOString()
-        : null;
-
       const res = await fetch('/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,10 +66,6 @@ export function NewUrlForm({
           staff_account_id: staffId || null,
           memo: memo || null,
           vendor_contact_id: vendorId || null,
-          recipient_label: recipientLabel || null,
-          subsidy_program_label: subsidyProgramLabel || null,
-          applicant_deadline: deadlineIso,
-          intake_message: intakeMessage || null,
         }),
       });
       if (!res.ok) {
@@ -110,10 +96,6 @@ export function NewUrlForm({
     setStaffId('');
     setMemo('');
     setVendorId('');
-    setRecipientLabel('');
-    setSubsidyProgramLabel('');
-    setApplicantDeadline('');
-    setIntakeMessage('');
   };
 
   return (
@@ -237,61 +219,6 @@ export function NewUrlForm({
             </p>
           </div>
 
-          <div className="border-t border-rule pt-4 space-y-4">
-            <div>
-              <div className="text-sm font-semibold text-charcoal">
-                申請者画面に表示する内容（任意）
-              </div>
-              <p className="text-xs text-mute mt-1">
-                申請者がURLを開いた時の冒頭ページに、案件ごとの内容として表示されます。空欄で発行すると汎用文言のみになります。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="recipient">宛名</Label>
-              <Input
-                id="recipient"
-                value={recipientLabel}
-                onChange={(e) => setRecipientLabel(e.target.value)}
-                placeholder="例: 田中様 / 株式会社○○ ご担当者様"
-              />
-              <p className="text-xs text-mute">入力すると「○○ 様」と冒頭に表示されます。</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="subsidy">補助金種別・公募</Label>
-              <Input
-                id="subsidy"
-                value={subsidyProgramLabel}
-                onChange={(e) => setSubsidyProgramLabel(e.target.value)}
-                placeholder="例: IT導入補助金 2026年度 通常枠 3次公募"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="deadline">提出目安日</Label>
-              <Input
-                id="deadline"
-                type="datetime-local"
-                value={applicantDeadline}
-                onChange={(e) => setApplicantDeadline(e.target.value)}
-              />
-              <p className="text-xs text-mute">
-                申請者画面に「○月○日までにご提出ください」として表示されます。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="message">案内メッセージ</Label>
-              <Textarea
-                id="message"
-                value={intakeMessage}
-                onChange={(e) => setIntakeMessage(e.target.value)}
-                placeholder="例: ご紹介ありがとうございます。下記より書類のご提出をお願いいたします。ご不明点は LINE までお気軽にお問い合わせください。"
-                rows={4}
-              />
-            </div>
-          </div>
 
           <Button type="submit" className="w-full" disabled={loading} size="lg">
             {loading ? '登録中...' : '案件を登録して申請URLを発行する'}
