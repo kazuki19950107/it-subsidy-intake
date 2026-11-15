@@ -113,11 +113,40 @@ async function hasVisibleRows(page: Page): Promise<boolean> {
 
 // ---------------------------------------------------------------- login
 
+/**
+ * ログイン失敗の理由として画面に出ている文を拾う。
+ * ログイン画面にいつも出ている「推奨環境」の案内文は理由ではないので除く。
+ */
+export function loginFailureHint(bodyText: string): string {
+  const lines = bodyText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/推奨/.test(l));
+  return (
+    lines.find((l) => /(誤り|間違|ロック|無効|失敗|エラー|できません)/.test(l)) ??
+    'ログイン後の画面に遷移しませんでした'
+  );
+}
+
+async function openLoginPage(page: Page) {
+  const idInput = page.locator('input[type="text"]').first();
+  // 混み合っているとログイン画面の表示が遅れるので、一度だけ読み直す
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await page.goto(PORTAL_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await idInput.waitFor({ state: 'visible', timeout: 30_000 });
+      return;
+    } catch {
+      await debugShot(page, `login-page-missing-${attempt}`);
+    }
+  }
+  throw new PortalError('ログイン画面が表示されませんでした（ポータルが混み合っているか、止まっている可能性）', 'login');
+}
+
 async function login(page: Page, loginId: string, password: string) {
-  await page.goto(PORTAL_LOGIN_URL, { waitUntil: 'domcontentloaded' });
+  await openLoginPage(page);
   const idInput = page.locator('input[type="text"]').first();
   const pwInput = page.locator('input[type="password"]').first();
-  await idInput.waitFor({ state: 'visible', timeout: 30_000 });
   await idInput.fill(loginId);
   await pwInput.fill(password);
 
@@ -134,10 +163,7 @@ async function login(page: Page, loginId: string, password: string) {
   } catch {
     await debugShot(page, 'login-failed');
     const bodyText = (await page.locator('body').innerText().catch(() => '')) ?? '';
-    const hint =
-      bodyText.match(/[^\n]*(誤り|正しく|ロック|無効|失敗|エラー)[^\n]*/)?.[0]?.trim() ??
-      'ログイン後の画面に遷移しませんでした';
-    throw new PortalError(`ポータルにログインできません: ${hint}`, 'login');
+    throw new PortalError(`ポータルにログインできません: ${loginFailureHint(bodyText)}`, 'login');
   }
   await debugShot(page, 'login-ok');
 }
@@ -154,6 +180,8 @@ async function navigateToList(page: Page) {
   const menu = visibleText(page, '交付申請関連').first();
   const item = visibleText(page, '交付申請検索').first();
 
+  // ログイン直後はメニューの描画が遅れることがあるので、出るまで少し待つ
+  await menu.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
   for (let attempt = 0; attempt < 3 && !(await item.isVisible().catch(() => false)); attempt++) {
     if (attempt === 0) await menu.hover().catch(() => {});
     else await menu.click().catch(() => {});

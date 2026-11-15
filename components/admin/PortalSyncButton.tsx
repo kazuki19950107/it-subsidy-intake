@@ -31,6 +31,10 @@ export function PortalSyncButton({
     try {
       const res = await fetch(`/api/admin/vendors/${vendorId}/portal-sync`, { method: 'POST' });
       const j = await res.json().catch(() => ({}));
+      if (res.status === 409 && j.busy) {
+        toast({ title: 'いまは同期できません', description: j.error, variant: 'error' });
+        return;
+      }
       if (!res.ok) throw new Error(j.error ?? '同期に失敗しました');
       const r = j.result as { rows: number; matched: number; durationMs: number; warnings?: string[] };
       const warn = r.warnings && r.warnings.length > 0 ? ` / 一部失敗: ${r.warnings.join(' / ')}` : '';

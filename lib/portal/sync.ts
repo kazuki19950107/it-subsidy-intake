@@ -1,4 +1,3 @@
-import { appBaseUrl } from '@/lib/utils/appUrl';
 import 'server-only';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/vendors/crypto';
@@ -40,24 +39,53 @@ export type SyncResult = {
   caseChanges: CaseStatusChange[];
 };
 
-/** 状態が変わった案件を社内用グループ向けの 1 通にまとめる */
-export function buildChangeSummary(results: SyncResult[]): string | null {
-  const caseChanges = results.flatMap((r) => r.caseChanges);
-  const others = results.flatMap((r) => r.portalChanges).filter(
-    (p) => !caseChanges.some((c) => c.applicationNo === p.application_no),
-  );
-  if (caseChanges.length === 0 && others.length === 0) return null;
-  const lines = ['【ポータル同期】状態が変わった案件'];
-  for (const c of caseChanges.slice(0, 30)) {
-    lines.push(`・${c.companyName ?? c.applicationNo}: ${c.from ?? '（なし）'} → ${c.to ?? '（なし）'}`);
+/** 同期は 1 回 300 秒で打ち切られる。これより古い「実行中」は止まったものとみなす */
+const STALE_RUN_MS = 6 * 60_000;
+
+/** ほかの同期が動いているため始めなかったとき */
+export class PortalSyncBusyError extends Error {
+  constructor(public readonly runningVendor: string | null) {
+    super(
+      `ほかの会社${runningVendor ? `（${runningVendor}）` : ''}を同期中です。同時に動かすと失敗するので、終わってから（1〜2分後）もう一度押してください。`,
+    );
+    this.name = 'PortalSyncBusyError';
   }
-  if (caseChanges.length > 30) lines.push(`ほか ${caseChanges.length - 30}件`);
-  if (others.length > 0) {
-    lines.push('', `案件に紐づいていない変化: ${others.length}件（新規 ${others.filter((o) => o.isNew).length}件）`);
-  }
-  const appUrl = appBaseUrl();
-  if (appUrl) lines.push('', `${appUrl}/admin/portal`);
-  return lines.join('\n');
+}
+
+/** 300 秒の上限で打ち切られて「実行中」のまま残った記録を失敗にする */
+export async function cleanupStaleRuns(): Promise<void> {
+  const supabase = createServiceRoleClient();
+  await supabase
+    .from('portal_sync_runs')
+    .update({
+      status: 'error',
+      finished_at: new Date().toISOString(),
+      error: '時間切れで止まりました（1回の上限300秒をこえた）。もう一度同期してください。',
+    })
+    .eq('status', 'running')
+    .lt('started_at', new Date(Date.now() - STALE_RUN_MS).toISOString());
+}
+
+/**
+ * ブラウザを同時に複数動かすと、メモリ不足や起動の取り合いで失敗する。
+ * 自分の記録を入れたあと、動いている同期のうち最も早く始めたものが自分でなければ譲る。
+ * （同時に押されても、どちらか 1 つだけが進む）
+ */
+async function acquireSyncSlot(runId: string): Promise<void> {
+  const supabase = createServiceRoleClient();
+  const { data } = await supabase
+    .from('portal_sync_runs')
+    .select('id, started_at, vendor_contacts(name)')
+    .eq('status', 'running')
+    .gte('started_at', new Date(Date.now() - STALE_RUN_MS).toISOString())
+    .order('started_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(1);
+  const first = (data ?? [])[0] as { id: string; vendor_contacts: { name: string } | { name: string }[] | null } | undefined;
+  if (!first || first.id === runId) return;
+  await supabase.from('portal_sync_runs').delete().eq('id', runId);
+  const v = first.vendor_contacts;
+  throw new PortalSyncBusyError((Array.isArray(v) ? v[0]?.name : v?.name) ?? null);
 }
 
 /** ポータルの認証情報を持つ有効なベンダー一覧 */
@@ -95,12 +123,14 @@ export async function syncVendorPortal(
     throw new Error('このベンダーにはポータルのログインIDとパスワードが登録されていません');
   }
 
+  await cleanupStaleRuns();
   const { data: run } = await supabase
     .from('portal_sync_runs')
     .insert({ vendor_contact_id: vendorId, trigger, status: 'running' })
     .select()
     .single();
   const runId = (run as PortalSyncRun).id;
+  await acquireSyncSlot(runId);
 
   try {
     const password = decryptSecret(vendor.portal_password_enc);
@@ -286,6 +316,7 @@ export async function syncVendorPortal(
 
 /** 最新の同期実行をベンダーごとに 1 件ずつ返す */
 export async function latestRunsByVendor(): Promise<Record<string, PortalSyncRun>> {
+  await cleanupStaleRuns();
   const supabase = createServiceRoleClient();
   const { data } = await supabase
     .from('portal_sync_runs')

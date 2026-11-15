@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncVendorPortal } from '@/lib/portal/sync';
+import { PortalSyncBusyError, syncVendorPortal } from '@/lib/portal/sync';
 
 // ブラウザ操作を含むため長め
 export const maxDuration = 300;
@@ -11,6 +11,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const result = await syncVendorPortal(id, 'manual');
     return NextResponse.json({ ok: true, result });
   } catch (e) {
+    if (e instanceof PortalSyncBusyError) {
+      return NextResponse.json({ error: e.message, busy: true }, { status: 409 });
+    }
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

@@ -10,12 +10,24 @@ export async function launchBrowser(): Promise<Browser> {
 
   if (onServerless) {
     const chromium = (await import('@sparticuz/chromium')).default;
-    const executablePath = await chromium.executablePath();
-    return playwright.launch({
-      args: chromium.args,
-      executablePath,
-      headless: true,
-    });
+    // 同じサーバーで別の処理が /tmp/chromium を書き出している最中だと
+    // spawn ETXTBSY で失敗することがあるので、少し待って数回やり直す
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const executablePath = await chromium.executablePath();
+        return await playwright.launch({
+          args: chromium.args,
+          executablePath,
+          headless: true,
+        });
+      } catch (e) {
+        lastError = e;
+        if (!/ETXTBSY|EBUSY/.test((e as Error).message ?? '')) throw e;
+        await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
+      }
+    }
+    throw lastError;
   }
 
   const executablePath = process.env.PORTAL_CHROME_PATH;
