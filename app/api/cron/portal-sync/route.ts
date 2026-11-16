@@ -1,131 +1,112 @@
 import { after, NextRequest, NextResponse } from 'next/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import {
+  cleanupStaleRuns,
   latestRunsByVendor,
   listSyncableVendors,
   PortalSyncBusyError,
   syncVendorPortal,
 } from '@/lib/portal/sync';
 import {
-  buildCronReport,
-  newCronChainState,
-  parseCronChainState,
-  type CronChainState,
+  buildDailyReport,
+  dailyWindowStart,
+  jstDay,
+  planDaily,
+  REPORT_DEADLINE_MIN,
+  type CronRun,
 } from '@/lib/portal/report';
 import { notifyInternal } from '@/lib/line/notify';
 import { refreshGroupNames } from '@/lib/line/groups';
 import { appBaseUrl } from '@/lib/utils/appUrl';
 
-// 毎朝の自動同期。Vercel Cron が GET で呼ぶ（1日1回）。Authorization: Bearer <CRON_SECRET> を必須にする。
+// 毎朝の自動同期。06:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれる。
+// 呼ぶのは Supabase の pg_cron（supabase/migrations/20261116000000_portal_daily_tick.sql）と、
+// 念のため Vercel Cron（vercel.json、1日1回）。Authorization: Bearer <CRON_SECRET> が必須。
 //
-// 1 回の実行は 300 秒までで、ベンダー全社を続けて回すと途中で打ち切られる。
-// そこで 1 回の実行では 1 社だけ同期し、終わったら自分自身を POST で呼んで次の会社へ進む。
-// 進み具合（終わった会社・変わった案件・失敗）は POST の本文で引き渡し、
-// 最後の実行で社内用グループに 1 通だけ送る（LINE の無料枠を使いすぎないため）。
-// ブラウザを同時に動かすと失敗するので、会社は必ず 1 社ずつ順番に回す。
+// 1 回の実行は 300 秒までなので、1 回の呼び出しでは 1 社だけ同期する。
+// （関数が自分自身を呼んで続ける方式は、Vercel にループとして止められる: HTTP 508）
+// ブラウザを同時に動かすと失敗するので、ほかの同期が動いていれば何もしないで終わる。
+// 全社が終わったら（または 07:55 を過ぎたら）社内用グループにまとめを 1 通だけ送る。
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-const BUSY_WAIT_MS = 30_000;
-const BUSY_RETRIES = 4;
-
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  return !!secret && req.headers.get('authorization') === `Bearer ${secret}`;
-}
-
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const origin = appBaseUrl(req.nextUrl.origin);
-  after(async () => {
-    await refreshGroupNames().catch((e) => console.error('[portal cron] group names', (e as Error).message));
-    await runHop(newCronChainState(), origin);
-  });
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  // 呼び出し元（pg_cron）は数秒で接続を切るので、先に返事をしてから同期する
+  after(() => tick().catch((e) => console.error('[portal cron] tick failed', e)));
   return NextResponse.json({ started: true }, { status: 202 });
 }
 
-/** 前の実行からの続き */
-export async function POST(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const state = parseCronChainState(await req.json().catch(() => null));
-  if (!state) return NextResponse.json({ error: 'bad state' }, { status: 400 });
-  const origin = appBaseUrl(req.nextUrl.origin);
-  after(() => runHop(state, origin));
-  return NextResponse.json({ continued: true, hop: state.hop }, { status: 202 });
+async function loadCronRuns(since: Date): Promise<CronRun[]> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('portal_sync_runs')
+    .select('vendor_contact_id, status, started_at, error, changes')
+    .eq('trigger', 'cron')
+    .gte('started_at', since.toISOString());
+  if (error) throw new Error(`portal_sync_runs を読めません: ${error.message}`);
+  return (data ?? []) as CronRun[];
 }
 
-async function runHop(state: CronChainState, origin: string): Promise<void> {
+/** まとめを送った日を記録する。すでに送っていれば false（2通送らないため） */
+async function claimReport(day: string): Promise<boolean> {
+  const supabase = createServiceRoleClient();
+  const { error } = await supabase.from('portal_daily_reports').insert({ day });
+  if (!error) return true;
+  if (error.code !== '23505') console.error('[portal cron] portal_daily_reports', error.message);
+  return false;
+}
+
+async function reportAlreadySent(day: string): Promise<boolean> {
+  const supabase = createServiceRoleClient();
+  const { data } = await supabase.from('portal_daily_reports').select('day').eq('day', day).maybeSingle();
+  return !!data;
+}
+
+async function tick(): Promise<void> {
+  await cleanupStaleRuns();
+  const now = new Date();
+  const since = dailyWindowStart(now);
+  const day = jstDay(since);
+  if (await reportAlreadySent(day)) return;
+
+  const vendors = await listSyncableVendors();
+  let runs = await loadCronRuns(since);
+  if (runs.length === 0) {
+    // その日の最初の 1 回だけ、LINE グループ名も取り直す
+    await refreshGroupNames().catch((e) => console.error('[portal cron] group names', (e as Error).message));
+  }
+  const latest = await latestRunsByVendor();
+  const lastStarted = Object.fromEntries(Object.entries(latest).map(([id, r]) => [id, r.started_at]));
+  let plan = planDaily(vendors, runs, lastStarted);
+
+  const sendReport = async (notReached = plan.pending) => {
+    if (!(await claimReport(day))) return;
+    const attempted = new Set(runs.map((r) => r.vendor_contact_id));
+    const text = buildDailyReport(
+      plan,
+      runs,
+      appBaseUrl(),
+      notReached.filter((v) => !attempted.has(v.id)),
+    );
+    if (text) await notifyInternal('portal_daily', text);
+  };
+
+  if (plan.pending.length === 0) return sendReport([]);
+  if (now.getTime() - since.getTime() > REPORT_DEADLINE_MIN * 60_000) return sendReport();
+
   try {
-    const vendors = await listSyncableVendors();
-    const pending = vendors.filter((v) => !state.done.includes(v.id));
-    if (pending.length === 0) return await finish(state, origin);
-    // 念のため、何度も同じ会社でつまずいて終わらなくなるのを防ぐ
-    if (state.hop > vendors.length * 2 + 5) {
-      state.stopped = `実行が${state.hop}回をこえたので打ち切りました（残り ${pending.length}社）`;
-      return await finish(state, origin);
-    }
-
-    // 前回の同期が古い会社から（途中で止まっても、次の日は残りの会社から回る）
-    const latest = await latestRunsByVendor();
-    pending.sort((a, b) => (latest[a.id]?.started_at ?? '').localeCompare(latest[b.id]?.started_at ?? ''));
-    const v = pending[0];
-
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const r = await syncVendorPortal(v.id, 'cron');
-        state.caseChanges.push(...r.caseChanges);
-        const others = r.portalChanges.filter((p) => !r.caseChanges.some((c) => c.applicationNo === p.application_no));
-        state.others += others.length;
-        state.othersNew += others.filter((o) => o.isNew).length;
-        state.done.push(v.id);
-        break;
-      } catch (e) {
-        if (e instanceof PortalSyncBusyError) {
-          // 手で押した同期が動いている。少し待ってからやり直す
-          if (attempt < BUSY_RETRIES) {
-            await new Promise((r) => setTimeout(r, BUSY_WAIT_MS));
-            continue;
-          }
-          break; // この会社は次の実行でもう一度
-        }
-        state.failures.push({ vendor: v.name, message: (e as Error).message });
-        state.done.push(v.id);
-        break;
-      }
-    }
-
-    state.hop += 1;
-    if (vendors.every((x) => state.done.includes(x.id))) return await finish(state, origin);
-    await continueChain(state, origin);
+    await syncVendorPortal(plan.pending[0].id, 'cron');
   } catch (e) {
-    console.error('[portal cron] hop failed', e);
-    state.stopped = `内部エラー: ${(e as Error).message}`;
-    await finish(state, origin).catch(() => {});
+    // ほかの同期（手で押したもの）が動いている → 次の呼び出しで
+    if (e instanceof PortalSyncBusyError) return;
+    // それ以外の失敗は portal_sync_runs に残っていて、あとでもう一度試す
   }
-}
 
-/** 次の実行を呼ぶ。呼ばれた側はすぐ 202 を返し、残りは自分の実行で進める */
-async function continueChain(state: CronChainState, origin: string): Promise<void> {
-  let lastError = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(`${origin}/api/cron/portal-sync`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${process.env.CRON_SECRET}`, 'content-type': 'application/json' },
-        body: JSON.stringify(state),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (res.ok) return;
-      lastError = `HTTP ${res.status}`;
-    } catch (e) {
-      lastError = (e as Error).message;
-    }
-    await new Promise((r) => setTimeout(r, 3_000));
-  }
-  state.stopped = `次の会社へ進めませんでした（${lastError}）。残りは「今すぐ同期」で`;
-  await finish(state, origin);
-}
-
-async function finish(state: CronChainState, origin: string): Promise<void> {
-  const text = buildCronReport(state, appBaseUrl() || origin);
-  if (text) await notifyInternal('portal_daily', text);
+  runs = await loadCronRuns(since);
+  plan = planDaily(vendors, runs, lastStarted);
+  if (plan.pending.length === 0) await sendReport([]);
 }

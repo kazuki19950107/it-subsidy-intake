@@ -312,6 +312,8 @@ export interface PortalSyncRun {
   rows_count: number | null;
   matched_count: number | null;
   error: string | null;
+  /** その回の変化（毎朝のまとめ用）。lib/portal/report.ts の RunChanges */
+  changes?: unknown;
 }
 
 export interface Document {

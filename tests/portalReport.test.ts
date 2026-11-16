@@ -1,23 +1,83 @@
 import { describe, expect, it } from 'vitest';
-import { buildCronReport, newCronChainState, parseCronChainState, shortError } from '@/lib/portal/report';
+import {
+  buildDailyReport,
+  dailyWindowStart,
+  jstDay,
+  planDaily,
+  shortError,
+  type CronRun,
+} from '@/lib/portal/report';
 import { loginFailureHint } from '@/lib/portal/scraper';
 
-describe('buildCronReport', () => {
+const vendors = [
+  { id: 'a', name: 'A社' },
+  { id: 'b', name: 'B社' },
+  { id: 'c', name: 'C社' },
+];
+const run = (id: string, status: CronRun['status'], extra: Partial<CronRun> = {}): CronRun => ({
+  vendor_contact_id: id,
+  status,
+  started_at: '2026-11-15T21:00:00Z',
+  error: status === 'error' ? '[login] ポータルにログインできません: エラーが発生しました。' : null,
+  changes: null,
+  ...extra,
+});
+
+describe('dailyWindowStart', () => {
+  it('06:00 より後なら今日の 06:00（日本時間）', () => {
+    const s = dailyWindowStart(new Date('2026-11-15T21:30:00Z')); // 11/16 06:30 JST
+    expect(s.toISOString()).toBe('2026-11-15T21:00:00.000Z');
+    expect(jstDay(s)).toBe('2026-11-16');
+  });
+  it('06:00 より前なら前の日の 06:00', () => {
+    const s = dailyWindowStart(new Date('2026-11-15T20:00:00Z')); // 11/16 05:00 JST
+    expect(s.toISOString()).toBe('2026-11-14T21:00:00.000Z');
+  });
+});
+
+describe('planDaily', () => {
+  it('まだの会社を先に、1回失敗した会社はあとでもう一度', () => {
+    const p = planDaily(vendors, [run('a', 'error'), run('b', 'success')], { a: '2026-01-01', c: '2026-11-01' });
+    expect(p.pending.map((v) => v.id)).toEqual(['c', 'a']);
+    expect(p.succeeded).toBe(1);
+    expect(p.failed.map((f) => f.vendor)).toEqual(['A社']);
+  });
+  it('2回失敗したらその日はもう試さない', () => {
+    const p = planDaily(vendors, [run('a', 'error'), run('a', 'error'), run('b', 'success'), run('c', 'success')]);
+    expect(p.pending).toEqual([]);
+    expect(p.failed[0].attempts).toBe(2);
+  });
+  it('実行中のものは回数に数えない', () => {
+    const p = planDaily([vendors[0]], [run('a', 'running')]);
+    expect(p.pending.map((v) => v.id)).toEqual(['a']);
+  });
+});
+
+describe('buildDailyReport', () => {
   it('伝えることが無ければ送らない', () => {
-    expect(buildCronReport(newCronChainState(), 'https://x')).toBeNull();
+    const runs = vendors.map((v) => run(v.id, 'success', { changes: { caseChanges: [], others: 0, othersNew: 0 } }));
+    expect(buildDailyReport(planDaily(vendors, runs), runs, 'https://x')).toBeNull();
   });
 
-  it('変化と失敗を 1 通にまとめる', () => {
-    const s = newCronChainState();
-    s.caseChanges.push({ applicationId: 'a', companyName: 'A社', applicationNo: 'KSN06-1', from: '審査中', to: '採択' });
-    s.others = 2;
-    s.othersNew = 1;
-    s.failures.push({ vendor: 'B社', message: '[login] ポータルにログインできません: エラーが発生しました。' });
-    const text = buildCronReport(s, 'https://x')!;
-    expect(text).toContain('A社: 審査中 → 採択');
+  it('変化・失敗・回りきれなかった会社を 1 通にまとめる', () => {
+    const runs = [
+      run('a', 'success', {
+        changes: {
+          caseChanges: [{ applicationId: '1', companyName: 'MEM社', applicationNo: 'KSN06-1', from: '交付決定', to: '実績報告済' }],
+          others: 2,
+          othersNew: 1,
+        },
+      }),
+      run('b', 'error'),
+      run('b', 'error'),
+    ];
+    const plan = planDaily(vendors, runs);
+    const text = buildDailyReport(plan, runs, 'https://x', [vendors[2]])!;
+    expect(text).toContain('MEM社: 交付決定 → 実績報告済');
     expect(text).toContain('案件に紐づいていない変化: 2件（新規 1件）');
     expect(text).toContain('取得に失敗した会社: 1社');
     expect(text).toContain('B社: [login]');
+    expect(text).toContain('時間内に回りきれなかった会社: C社');
     expect(text).toContain('https://x/admin/portal');
   });
 });
@@ -26,18 +86,6 @@ describe('shortError', () => {
   it('ブラウザの起動引数などを落とす', () => {
     const msg = 'browserType.launch: spawn ETXTBSY Call log: - <launching> /tmp/chromium --disable-field-trial-config';
     expect(shortError(msg)).toBe('browserType.launch: spawn ETXTBSY');
-  });
-});
-
-describe('parseCronChainState', () => {
-  it('形が違えば受け付けない', () => {
-    expect(parseCronChainState(null)).toBeNull();
-    expect(parseCronChainState({ since: 'x' })).toBeNull();
-  });
-  it('引き渡した内容を戻せる', () => {
-    const s = newCronChainState();
-    s.done.push('v1');
-    expect(parseCronChainState(JSON.parse(JSON.stringify(s)))).toEqual(s);
   });
 });
 

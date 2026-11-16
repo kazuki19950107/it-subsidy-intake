@@ -14,6 +14,7 @@ import {
 import { addHistory, applyPortalStatus } from '@/lib/cases/service';
 import { roundFromPortal } from './match';
 import type { PortalDetail } from './detail';
+import type { RunChanges } from './report';
 import { applyPortalDetailToCase, detailFromRaw } from './applyDetail';
 import { ensureVendorContract } from '@/lib/vendorDocs/service';
 
@@ -253,21 +254,26 @@ export async function syncVendorPortal(
       await ensureVendorContract(c.id).catch((e) => console.error('[portal sync] vendor contract', (e as Error).message));
     }
 
-    await supabase
-      .from('portal_sync_runs')
-      .update({
-        status: 'success',
-        finished_at: now,
-        rows_count: rows.length,
-        matched_count: matched,
-        // 成功扱いだが一部年度で失敗した場合はここに残す（画面で注意表示）
-        error:
-          [warnings.length > 0 ? `一部の年度で失敗: ${warnings.join(' / ')}` : null, ...detailNotes]
-            .filter(Boolean)
-            .join(' / ')
-            .slice(0, 2000) || null,
-      })
-      .eq('id', runId);
+    const done = {
+      status: 'success',
+      finished_at: now,
+      rows_count: rows.length,
+      matched_count: matched,
+      // 成功扱いだが一部年度で失敗した場合はここに残す（画面で注意表示）
+      error:
+        [warnings.length > 0 ? `一部の年度で失敗: ${warnings.join(' / ')}` : null, ...detailNotes]
+          .filter(Boolean)
+          .join(' / ')
+          .slice(0, 2000) || null,
+    };
+    // 毎朝のまとめ（1通）を作るため、この回の変化を残す
+    const others = portalChanges.filter((p) => !caseChanges.some((c) => c.applicationNo === p.application_no));
+    const changes: RunChanges = { caseChanges, others: others.length, othersNew: others.filter((o) => o.isNew).length };
+    const { error: saveError } = await supabase.from('portal_sync_runs').update({ ...done, changes }).eq('id', runId);
+    if (saveError) {
+      // changes 列がまだ無い（DB の変更前）ときも、成功の記録だけは残す
+      await supabase.from('portal_sync_runs').update(done).eq('id', runId);
+    }
 
     await auditLog({
       actorType: trigger === 'cron' ? 'system' : 'admin',

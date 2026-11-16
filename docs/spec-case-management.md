@@ -15,7 +15,7 @@
 | 書類提出フォーム（ログイン不要・推測できないトークン付きURL・gBizIDなどの確認項目） | `app/(public)/apply/[token]` | そのまま使う。**URLの有効期限は付けない**（今のまま） |
 | AIによる書類判定（Google VisionでOCR → Claudeで抽出・判定、写真の四隅チェック、会社情報との照合） | `lib/claude/*`, `lib/ocr/*`, `lib/validation/crossCheck.ts` | そのまま使う。判定条件の一部を管理画面で変えられるようにする（5-6） |
 | 個人事業主の申請 | `applicant_type = 'sole_proprietor'` | **残す** |
-| ポータル同期（このリポジトリ内のPlaywright、Vercel cronで1日1回（1社ずつ自分を呼び直して全社を回す）＋手動ボタン。同時実行は1社まで） | `lib/portal/*`, `app/api/cron/portal-sync` | **取得の仕組みは今のまま**。取り込み後の照合・差分・通知を追加する（5-2） |
+| ポータル同期（このリポジトリ内のPlaywright、毎朝6〜8時にSupabase pg_cronが2分おきに呼び1社ずつ同期（Vercel cronも1日1回）、全社終わればまとめ1通＋手動ボタン。同時実行は1社まで） | `lib/portal/*`, `app/api/cron/portal-sync` | **取得の仕組みは今のまま**。取り込み後の照合・差分・通知を追加する（5-2） |
 | 管理者ログイン（パスワード＋署名付きCookie） | `lib/auth/adminSession.ts` | **今のまま**。Supabase Authには移さない |
 | 支援事業者の管理・ポータルのログイン情報 | `app/admin/(secure)/vendors` | そのまま使う |
 | 担当者向けの共有URL | `app/share/[token]` | そのまま使う |
