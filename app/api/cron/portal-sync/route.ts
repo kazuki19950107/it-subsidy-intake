@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import {
   cleanupStaleRuns,
+  latestRun,
   latestRunsByVendor,
   listSyncableVendors,
   PortalSyncBusyError,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/portal/sync';
 import {
   buildDailyReport,
+  cronWaitMinutes,
   dailyWindowStart,
   jstDay,
   planDaily,
@@ -19,11 +21,13 @@ import { notifyInternal } from '@/lib/line/notify';
 import { refreshGroupNames } from '@/lib/line/groups';
 import { appBaseUrl } from '@/lib/utils/appUrl';
 
-// 毎朝の自動同期。06:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれる。
+// 毎朝の自動同期。04:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれる。
 // 呼ぶのは Supabase の pg_cron（supabase/migrations/20261116000000_portal_daily_tick.sql）と、
 // 念のため Vercel Cron（vercel.json、1日1回）。Authorization: Bearer <CRON_SECRET> が必須。
 //
 // 1 回の実行は 300 秒までなので、1 回の呼び出しでは 1 社だけ同期する。
+// ポータルは続けてログインすると受け付けなくなるので、会社のあいだを 6 分あけ、
+// 断られたら 15 分休む（lib/portal/report.ts の cronWaitMinutes）。
 // （関数が自分自身を呼んで続ける方式は、Vercel にループとして止められる: HTTP 508）
 // ブラウザを同時に動かすと失敗するので、ほかの同期が動いていれば何もしないで終わる。
 // 全社が終わったら（または 07:55 を過ぎたら）社内用グループにまとめを 1 通だけ送る。
@@ -97,6 +101,9 @@ async function tick(): Promise<void> {
 
   if (plan.pending.length === 0) return sendReport([]);
   if (now.getTime() - since.getTime() > REPORT_DEADLINE_MIN * 60_000) return sendReport();
+
+  // 前の同期から間があいていなければ、次の呼び出し（2 分後）まで待つ
+  if (cronWaitMinutes(await latestRun(), now) > 0) return;
 
   try {
     await syncVendorPortal(plan.pending[0].id, 'cron');

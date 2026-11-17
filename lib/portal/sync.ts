@@ -4,6 +4,7 @@ import { decryptSecret } from '@/lib/vendors/crypto';
 import { auditLog } from '@/lib/utils/logger';
 import type { PortalSyncRun, VendorContact } from '@/lib/supabase/types';
 import { scrapePortalCases, PortalError } from './scraper';
+import { MANUAL_GAP_MIN, type LastRun } from './report';
 import {
   corporateNumberFromRaw,
   diffPortalRows,
@@ -41,7 +42,7 @@ export type SyncResult = {
 };
 
 /** 同期は 1 回 300 秒で打ち切られる。これより古い「実行中」は止まったものとみなす */
-const STALE_RUN_MS = 6 * 60_000;
+const STALE_RUN_MS = 6 * 60_000; // 1 回は SCRAPE_TIME_BUDGET_MS（230 秒）で自分からやめる
 
 /** ほかの同期が動いているため始めなかったとき */
 export class PortalSyncBusyError extends Error {
@@ -51,6 +52,27 @@ export class PortalSyncBusyError extends Error {
     );
     this.name = 'PortalSyncBusyError';
   }
+}
+
+/** ひとつ前の同期を始めてからの間が短すぎるとき（ポータルが続けてのログインを止めるため） */
+export class PortalSyncTooSoonError extends PortalSyncBusyError {
+  constructor(waitMin: number) {
+    super(null);
+    this.message = `ポータルは続けてログインすると受け付けなくなるので、あと${waitMin}分ほどあけてから押してください。`;
+    this.name = 'PortalSyncTooSoonError';
+  }
+}
+
+/** すべての会社・すべての種類のうち、いちばん新しい同期 */
+export async function latestRun(): Promise<LastRun | null> {
+  const supabase = createServiceRoleClient();
+  const { data } = await supabase
+    .from('portal_sync_runs')
+    .select('started_at, status, error')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as LastRun | null) ?? null;
 }
 
 /** 300 秒の上限で打ち切られて「実行中」のまま残った記録を失敗にする */
@@ -125,6 +147,13 @@ export async function syncVendorPortal(
   }
 
   await cleanupStaleRuns();
+  if (trigger === 'manual') {
+    const last = await latestRun();
+    if (last && last.status !== 'running') {
+      const elapsedMin = (Date.now() - new Date(last.started_at).getTime()) / 60_000;
+      if (elapsedMin < MANUAL_GAP_MIN) throw new PortalSyncTooSoonError(Math.ceil(MANUAL_GAP_MIN - elapsedMin));
+    }
+  }
   const { data: run } = await supabase
     .from('portal_sync_runs')
     .insert({ vendor_contact_id: vendorId, trigger, status: 'running' })

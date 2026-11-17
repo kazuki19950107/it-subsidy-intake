@@ -155,7 +155,7 @@ function PortalDetailView({ raw }: { raw: unknown }) {
   if (!d) {
     return (
       <div className="text-[11px] text-mute">
-        ツール・補助金申請額は、次回のポータル同期で読み取ります（毎朝6時、またはポータル案件の画面の「今すぐ同期」）。
+        ツール・補助金申請額は、次回のポータル同期で読み取ります（毎朝4時〜8時、またはポータル案件の画面の「今すぐ同期」）。
       </div>
     );
   }

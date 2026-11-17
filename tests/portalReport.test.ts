@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildDailyReport,
+  cronWaitMinutes,
   dailyWindowStart,
+  isPortalRefusal,
   jstDay,
   planDaily,
   shortError,
@@ -24,14 +26,46 @@ const run = (id: string, status: CronRun['status'], extra: Partial<CronRun> = {}
 });
 
 describe('dailyWindowStart', () => {
-  it('06:00 より後なら今日の 06:00（日本時間）', () => {
+  it('04:00 より後なら今日の 04:00（日本時間）', () => {
     const s = dailyWindowStart(new Date('2026-11-15T21:30:00Z')); // 11/16 06:30 JST
-    expect(s.toISOString()).toBe('2026-11-15T21:00:00.000Z');
+    expect(s.toISOString()).toBe('2026-11-15T19:00:00.000Z');
     expect(jstDay(s)).toBe('2026-11-16');
   });
-  it('06:00 より前なら前の日の 06:00', () => {
-    const s = dailyWindowStart(new Date('2026-11-15T20:00:00Z')); // 11/16 05:00 JST
-    expect(s.toISOString()).toBe('2026-11-14T21:00:00.000Z');
+  it('04:00 より前なら前の日の 04:00', () => {
+    const s = dailyWindowStart(new Date('2026-11-15T18:00:00Z')); // 11/16 03:00 JST
+    expect(s.toISOString()).toBe('2026-11-14T19:00:00.000Z');
+  });
+});
+
+describe('cronWaitMinutes', () => {
+  const at = (iso: string) => new Date(iso);
+  const last = (startedAt: string, status: CronRun['status'], error: string | null = null) => ({
+    started_at: startedAt,
+    status,
+    error,
+  });
+  it('はじめての同期なら待たない', () => {
+    expect(cronWaitMinutes(null, at('2026-11-17T19:00:00Z'))).toBe(0);
+  });
+  it('成功のあとは 6 分あける（呼び出しの数秒のずれは許す）', () => {
+    const l = last('2026-11-17T19:00:02Z', 'success');
+    expect(cronWaitMinutes(l, at('2026-11-17T19:04:00Z'))).toBeGreaterThan(0);
+    expect(cronWaitMinutes(l, at('2026-11-17T19:06:00Z'))).toBe(0);
+  });
+  it('ポータルに断られたら 15 分休む', () => {
+    const l = last('2026-11-17T19:00:00Z', 'error', '[login] ポータルにログインできません: ログイン後の画面に遷移しませんでした');
+    expect(cronWaitMinutes(l, at('2026-11-17T19:10:00Z'))).toBe(5);
+    expect(cronWaitMinutes(l, at('2026-11-17T19:15:00Z'))).toBe(0);
+  });
+  it('時間切れやブラウザが閉じた失敗も休む', () => {
+    expect(isPortalRefusal('[timeout] 230秒たっても終わらないのでやめました')).toBe(true);
+    expect(isPortalRefusal('時間切れで止まりました（1回の上限300秒をこえた）。')).toBe(true);
+    expect(isPortalRefusal('browserContext.newPage: Target page, context or browser has been closed')).toBe(true);
+  });
+  it('画面の読み取りの失敗では休まない', () => {
+    expect(isPortalRefusal('[list] 交付申請検索の画面に遷移できませんでした')).toBe(false);
+    const l = last('2026-11-17T19:00:00Z', 'error', '[list] 交付申請検索の画面に遷移できませんでした');
+    expect(cronWaitMinutes(l, at('2026-11-17T19:06:00Z'))).toBe(0);
   });
 });
 

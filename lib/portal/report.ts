@@ -1,6 +1,9 @@
 /**
- * 毎朝の自動同期。06:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれ、
- * 1 回の呼び出しでまだ終わっていない会社を 1 社だけ同期する。
+ * 毎朝の自動同期。04:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれ、
+ * 間があいていれば、まだ終わっていない会社を 1 社だけ同期する。
+ * ポータルは短い時間に何度もログインすると受け付けなくなる（4〜5 社続けると止められ、
+ * 10 分ほどあけると戻る。2026-11-15〜18 の記録から）ので、会社と会社のあいだを 6 分あけ、
+ * 断られたら 15 分休む。
  * 進み具合は portal_sync_runs（trigger = 'cron'）から読み、全社が終わったら
  * 社内用グループに 1 通だけまとめを送る（LINE の無料枠を使いすぎないため）。
  */
@@ -33,21 +36,52 @@ export type VendorLite = { id: string; name: string };
 
 /** 1 社につき何回まで試すか（1 回目の失敗は、ほかの会社が終わったあともう一度） */
 export const MAX_ATTEMPTS = 2;
-/** 06:00 から何分たったら、残りがあってもまとめを送るか（07:55） */
-export const REPORT_DEADLINE_MIN = 115;
+/** 毎朝の自動同期を始める時刻（日本時間）。pg_cron の時刻と合わせる */
+export const WINDOW_START_HOUR = 4;
+/** 始めてから何分たったら、残りがあってもまとめを送るか（07:55） */
+export const REPORT_DEADLINE_MIN = 235;
+/** 自動同期で、ひとつ前の同期（手で押したものも含む）を始めてから次を始めるまで、何分あけるか */
+export const CRON_GAP_MIN = 6;
+/** ポータルに断られたら、何分休むか */
+export const COOLDOWN_MIN = 15;
+/** 手で押す同期で、ひとつ前の同期を始めてから何分あけるか */
+export const MANUAL_GAP_MIN = 3;
 
 const JST_OFFSET_MS = 9 * 3600_000;
 
-/** いちばん近い過去の 06:00（日本時間）。この時刻より後の自動同期を「今日の分」とする */
+/** いちばん近い過去の 04:00（日本時間）。この時刻より後の自動同期を「今日の分」とする */
 export function dailyWindowStart(now: Date): Date {
   const jst = new Date(now.getTime() + JST_OFFSET_MS);
-  const start = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate(), 6) - JST_OFFSET_MS;
+  const start = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate(), WINDOW_START_HOUR) - JST_OFFSET_MS;
   return new Date(start <= now.getTime() ? start : start - 86400_000);
 }
 
 /** 日本時間の日付（YYYY-MM-DD） */
 export function jstDay(d: Date): string {
   return new Date(d.getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+export type LastRun = { started_at: string; status: CronRun['status']; error: string | null };
+
+/**
+ * ポータルに断られた（または応答が無かった）ときの失敗か。
+ * IDやパスワードの誤りもログインの失敗として出るので区別できないが、休んでも害は小さい。
+ */
+export function isPortalRefusal(error: string | null): boolean {
+  if (!error) return false;
+  return /^\[(login|timeout)\]|時間切れ|page\.goto: Timeout|Target page, context or browser has been closed/.test(error);
+}
+
+/**
+ * 自動同期で、今すぐ次の会社を始めてよいか。待つなら、あと何分か（切り上げ）を返す。
+ * last はすべての会社・すべての種類（自動・手）の同期のうち、いちばん新しいもの。
+ */
+export function cronWaitMinutes(last: LastRun | null, now: Date): number {
+  if (!last) return 0;
+  const elapsed = (now.getTime() - new Date(last.started_at).getTime()) / 60_000;
+  const need = last.status === 'error' && isPortalRefusal(last.error) ? COOLDOWN_MIN : CRON_GAP_MIN;
+  // pg_cron の呼び出しは数秒ずれるので、30 秒の余裕を見る
+  return elapsed + 0.5 >= need ? 0 : Math.ceil(need - elapsed);
 }
 
 export type DailyPlan = {

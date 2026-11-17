@@ -28,7 +28,7 @@ export type PortalRow = {
 export class PortalError extends Error {
   constructor(
     message: string,
-    public readonly stage: 'login' | 'list' | 'parse' | 'browser',
+    public readonly stage: 'login' | 'list' | 'parse' | 'browser' | 'timeout',
   ) {
     super(message);
     this.name = 'PortalError';
@@ -131,16 +131,23 @@ export function loginFailureHint(bodyText: string): string {
 async function openLoginPage(page: Page) {
   const idInput = page.locator('input[type="text"]').first();
   // 混み合っているとログイン画面の表示が遅れるので、一度だけ読み直す
+  let reason = '';
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       await page.goto(PORTAL_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       await idInput.waitFor({ state: 'visible', timeout: 30_000 });
       return;
-    } catch {
+    } catch (e) {
+      // 「接続を断られた」「時間切れ」など、本当の理由を残す（原因を分けるため）
+      reason = ((e as Error).message ?? '').split('\n')[0].slice(0, 120);
       await debugShot(page, `login-page-missing-${attempt}`);
+      if (attempt === 0) await page.waitForTimeout(3_000).catch(() => {});
     }
   }
-  throw new PortalError('ログイン画面が表示されませんでした（ポータルが混み合っているか、止まっている可能性）', 'login');
+  throw new PortalError(
+    `ログイン画面が表示されませんでした（ポータルが混み合っているか、止まっている可能性）${reason ? `: ${reason}` : ''}`,
+    'login',
+  );
 }
 
 async function login(page: Page, loginId: string, password: string) {
@@ -459,7 +466,15 @@ export type ScrapeOptions = {
   detailBudgetMs?: number;
   /** 1 回で読む詳細の上限 */
   maxDetails?: number;
+  /** ブラウザを起動してから、これを過ぎたらブラウザを閉じてやめる（ミリ秒） */
+  timeBudgetMs?: number;
 };
+
+/**
+ * 1 回の同期にかけてよい時間。Vercel の上限（300 秒）で打ち切られると、
+ * ブラウザが残ったままになり、次の同期まで失敗させるので、その前に自分でやめる。
+ */
+export const SCRAPE_TIME_BUDGET_MS = 230_000;
 
 /**
  * 一覧の行の「申請内容確認」を押して「交付申請 確認」画面を読み、「戻る」で一覧に戻る。
@@ -499,6 +514,12 @@ export async function scrapePortalCases(
   } catch (e) {
     throw new PortalError(`ブラウザを起動できません: ${(e as Error).message}`, 'browser');
   }
+  // 時間を過ぎたらブラウザを閉じる。動いている操作はすべてすぐ失敗して、下の catch に来る
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    browser.close().catch(() => {});
+  }, options.timeBudgetMs ?? SCRAPE_TIME_BUDGET_MS);
   try {
     const context = await browser.newContext({
       locale: 'ja-JP',
@@ -586,7 +607,14 @@ export async function scrapePortalCases(
     await visibleText(page, 'ログアウト').first().click({ timeout: 5_000 }).catch(() => {});
 
     return { rows, details, warnings, detailNotes, yearsSearched };
+  } catch (e) {
+    if (timedOut) {
+      const sec = Math.round((options.timeBudgetMs ?? SCRAPE_TIME_BUDGET_MS) / 1000);
+      throw new PortalError(`${sec}秒たっても終わらないのでやめました（ポータルの応答が遅い）`, 'timeout');
+    }
+    throw e;
   } finally {
+    clearTimeout(timer);
     await browser.close().catch(() => {});
   }
 }

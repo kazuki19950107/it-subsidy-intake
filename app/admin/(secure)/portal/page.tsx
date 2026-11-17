@@ -26,7 +26,7 @@ export default async function PortalPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">ポータル案件</h1>
         <p className="text-sm text-mute">
-          IT導入支援事業者ポータルの「保存済交付申請検索」から取り込んだ案件です。毎朝6時に自動取得するほか、手動でも更新できます。
+          IT導入支援事業者ポータルの「保存済交付申請検索」から取り込んだ案件です。毎朝4時〜8時に自動取得するほか、手動でも更新できます。
         </p>
         <p className="text-xs text-mute mt-1">
           取込済み {cases.length}件（{yearSummary || '年度不明'}）・申請と紐づき済み{' '}
