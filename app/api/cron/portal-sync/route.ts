@@ -27,7 +27,7 @@ import { appBaseUrl } from '@/lib/utils/appUrl';
 //
 // 1 回の実行は 300 秒までなので、1 回の呼び出しでは 1 社だけ同期する。
 // ポータルは続けてログインすると受け付けなくなるので、会社のあいだを 6 分あけ、
-// 断られたら 15 分休む（lib/portal/report.ts の cronWaitMinutes）。
+// 断られたら 10 分休む（lib/portal/report.ts の cronWaitMinutes）。
 // （関数が自分自身を呼んで続ける方式は、Vercel にループとして止められる: HTTP 508）
 // ブラウザを同時に動かすと失敗するので、ほかの同期が動いていれば何もしないで終わる。
 // 全社が終わったら（または 07:55 を過ぎたら）社内用グループにまとめを 1 通だけ送る。
@@ -105,15 +105,31 @@ async function tick(): Promise<void> {
   // 前の同期から間があいていなければ、次の呼び出し（2 分後）まで待つ
   if (cronWaitMinutes(await latestRun(), now) > 0) return;
 
+  let failed = false;
   try {
     await syncVendorPortal(plan.pending[0].id, 'cron');
   } catch (e) {
     // ほかの同期（手で押したもの）が動いている → 次の呼び出しで
     if (e instanceof PortalSyncBusyError) return;
     // それ以外の失敗は portal_sync_runs に残っていて、あとでもう一度試す
+    failed = true;
   }
 
   runs = await loadCronRuns(since);
   plan = planDaily(vendors, runs, lastStarted);
   if (plan.pending.length === 0) await sendReport([]);
+
+  if (failed) recycleServer();
+}
+
+/**
+ * 失敗したあとは、このサーバーを終わらせて、次の呼び出しを新しいサーバーで動かす。
+ * Vercel は同じサーバーを使い回すので、ブラウザの残りなどで具合が悪くなったサーバーで
+ * 失敗が続いていた（2026-11-21/22）。記録はすべて書き終えたあとなので、失うものは無い。
+ * 夜明け前の自動同期のときだけ行う（昼間に終わらせると、ほかの画面の表示を巻き込むため）。
+ */
+function recycleServer() {
+  if (!process.env.VERCEL) return;
+  console.warn('[portal cron] 失敗したので、このサーバーを終わらせて次は新しいサーバーで動かします');
+  setTimeout(() => process.exit(0), 500);
 }

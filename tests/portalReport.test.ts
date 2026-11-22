@@ -52,10 +52,10 @@ describe('cronWaitMinutes', () => {
     expect(cronWaitMinutes(l, at('2026-11-17T19:04:00Z'))).toBeGreaterThan(0);
     expect(cronWaitMinutes(l, at('2026-11-17T19:06:00Z'))).toBe(0);
   });
-  it('ポータルに断られたら 15 分休む', () => {
+  it('ポータルに断られたら 10 分休む', () => {
     const l = last('2026-11-17T19:00:00Z', 'error', '[login] ポータルにログインできません: ログイン後の画面に遷移しませんでした');
-    expect(cronWaitMinutes(l, at('2026-11-17T19:10:00Z'))).toBe(5);
-    expect(cronWaitMinutes(l, at('2026-11-17T19:15:00Z'))).toBe(0);
+    expect(cronWaitMinutes(l, at('2026-11-17T19:06:00Z'))).toBe(4);
+    expect(cronWaitMinutes(l, at('2026-11-17T19:10:00Z'))).toBe(0);
   });
   it('時間切れやブラウザが閉じた失敗も休む', () => {
     expect(isPortalRefusal('[timeout] 230秒たっても終わらないのでやめました')).toBe(true);
@@ -76,10 +76,15 @@ describe('planDaily', () => {
     expect(p.succeeded).toBe(1);
     expect(p.failed.map((f) => f.vendor)).toEqual(['A社']);
   });
-  it('2回失敗したらその日はもう試さない', () => {
+  it('2回失敗しても、もう一度試す', () => {
     const p = planDaily(vendors, [run('a', 'error'), run('a', 'error'), run('b', 'success'), run('c', 'success')]);
+    expect(p.pending.map((v) => v.id)).toEqual(['a']);
+  });
+  it('3回失敗したらその日はもう試さない', () => {
+    const runs = [run('a', 'error'), run('a', 'error'), run('a', 'error'), run('b', 'success'), run('c', 'success')];
+    const p = planDaily(vendors, runs);
     expect(p.pending).toEqual([]);
-    expect(p.failed[0].attempts).toBe(2);
+    expect(p.failed[0].attempts).toBe(3);
   });
   it('実行中のものは回数に数えない', () => {
     const p = planDaily([vendors[0]], [run('a', 'running')]);

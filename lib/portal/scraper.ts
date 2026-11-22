@@ -1,8 +1,8 @@
-import type { Page } from 'playwright-core';
+import type { Browser, Page } from 'playwright-core';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { launchBrowser } from './browser';
+import { lastLaunchMode, launchBrowser } from './browser';
 import { describeServer, prepareServer } from './hygiene';
 import { normalizeApplicationNo } from './normalize';
 import { parsePortalDetail, type PortalDetail } from './detail';
@@ -229,8 +229,17 @@ async function navigateToList(page: Page) {
 
 /** 検索条件タブに表示されている「20XX年度」ラベルを新しい順に返す */
 async function listFiscalYears(page: Page): Promise<string[]> {
-  await clickIfVisible(page, '検索条件', 1_000);
-  await page.waitForTimeout(300);
+  // 画面の描画が遅いと年度がまだ出ていないので、出るまで少しずつ待つ（最大 20 秒ほど）
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await clickIfVisible(page, '検索条件', 1_000);
+    await page.waitForTimeout(attempt === 0 ? 300 : 2_000);
+    const years = await readFiscalYears(page);
+    if (years.length > 0) return years;
+  }
+  return [];
+}
+
+async function readFiscalYears(page: Page): Promise<string[]> {
   const labels = await page.$$eval('label, span, div', (els) =>
     Array.from(
       new Set(
@@ -458,6 +467,8 @@ export type ScrapeResult = {
   /** 年度単位で失敗したが全体は続行した場合のメッセージ */
   warnings: string[];
   yearsSearched: string[];
+  /** 起動したときのサーバーの様子（成功した回も残して、失敗した回と比べる） */
+  server: string;
 };
 
 export type ScrapeOptions = {
@@ -509,16 +520,28 @@ export async function scrapePortalCases(
   password: string,
   options: ScrapeOptions = {},
 ): Promise<ScrapeResult> {
-  // 前回の残りのブラウザを止めてから起動する。様子は失敗したときの記録に付ける
-  const server = await prepareServer();
-  const diag = `
-${describeServer(server)}`;
-  let browser;
-  try {
-    browser = await launchBrowser();
-  } catch (e) {
-    throw new PortalError(`ブラウザを起動できません: ${(e as Error).message}${diag}`, 'browser');
-  }
+  // 前回の残りのブラウザを止めてから起動する。様子は記録に付ける（失敗の原因を分けるため）
+  let server = await prepareServer();
+  const diagText = () => `${describeServer(server)}・${lastLaunchMode()}`;
+  const diag = () => '\n' + diagText();
+  const openBrowser = async (): Promise<Browser> => {
+    try {
+      return await launchBrowser();
+    } catch (e) {
+      throw new PortalError(`ブラウザを起動できません: ${(e as Error).message}${diag()}`, 'browser');
+    }
+  };
+  const openPage = async (b: Browser): Promise<Page> => {
+    const context = await b.newContext({
+      locale: 'ja-JP',
+      timezoneId: 'Asia/Tokyo',
+      viewport: { width: 1400, height: 1000 },
+    });
+    const p = await context.newPage();
+    p.setDefaultTimeout(30_000);
+    return p;
+  };
+  let browser = await openBrowser();
   // 時間を過ぎたらブラウザを閉じる。動いている操作はすべてすぐ失敗して、下の catch に来る
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -526,15 +549,21 @@ ${describeServer(server)}`;
     browser.close().catch(() => {});
   }, options.timeBudgetMs ?? SCRAPE_TIME_BUDGET_MS);
   try {
-    const context = await browser.newContext({
-      locale: 'ja-JP',
-      timezoneId: 'Asia/Tokyo',
-      viewport: { width: 1400, height: 1000 },
-    });
-    const page = await context.newPage();
-    page.setDefaultTimeout(30_000);
+    let page = await openPage(browser);
 
-    await login(page, loginId, password);
+    try {
+      await login(page, loginId, password);
+    } catch (e) {
+      if (!(e instanceof PortalError && e.stage === 'login') || timedOut) throw e;
+      // ログインで失敗したら、ブラウザを作り直してもう一度だけ試す
+      // （ブラウザの具合が悪いだけのことがあるため。IDやパスワードの誤りなら、もう一度失敗する）
+      await browser.close().catch(() => {});
+      server = await prepareServer();
+      await new Promise((r) => setTimeout(r, 5_000));
+      browser = await openBrowser();
+      page = await openPage(browser);
+      await login(page, loginId, password);
+    }
     await navigateToList(page);
 
     const years = await listFiscalYears(page);
@@ -611,14 +640,16 @@ ${describeServer(server)}`;
     // セッションを残さない
     await visibleText(page, 'ログアウト').first().click({ timeout: 5_000 }).catch(() => {});
 
-    return { rows, details, warnings, detailNotes, yearsSearched };
+    return { rows, details, warnings, detailNotes, yearsSearched, server: diagText() };
   } catch (e) {
     if (timedOut) {
       const sec = Math.round((options.timeBudgetMs ?? SCRAPE_TIME_BUDGET_MS) / 1000);
-      throw new PortalError(`${sec}秒たっても終わらないのでやめました（ポータルの応答が遅い）${diag}`, 'timeout');
+      throw new PortalError(`${sec}秒たっても終わらないのでやめました（ポータルの応答が遅い）${diag()}`, 'timeout');
     }
-    if (e instanceof PortalError) throw new PortalError(`${e.message}${diag}`, e.stage);
-    if (e instanceof Error) e.message = `${e.message}${diag}`;
+    // 起動の失敗には、すでに付いている
+    if (e instanceof PortalError && e.stage === 'browser') throw e;
+    if (e instanceof PortalError) throw new PortalError(`${e.message}${diag()}`, e.stage);
+    if (e instanceof Error) e.message = `${e.message}${diag()}`;
     throw e;
   } finally {
     clearTimeout(timer);

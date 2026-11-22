@@ -182,7 +182,7 @@ export async function syncVendorPortal(
       .not('portal_application_no', 'is', null);
     const linkedNos = new Set(((linkedRows ?? []) as Array<{ portal_application_no: string }>).map((r) => r.portal_application_no));
 
-    const { rows, details, warnings, detailNotes, yearsSearched } = await scrapePortalCases(vendor.portal_login_id, password, {
+    const { rows, details, warnings, detailNotes, yearsSearched, server } = await scrapePortalCases(vendor.portal_login_id, password, {
       // 紐付いた案件のうち、詳細がまだ無い・状態が変わった・30日以上たったものだけ、1回 10件まで
       shouldReadDetail: (r) => {
         if (!linkedNos.has(r.application_no)) return false;
@@ -297,7 +297,12 @@ export async function syncVendorPortal(
     };
     // 毎朝のまとめ（1通）を作るため、この回の変化を残す
     const others = portalChanges.filter((p) => !caseChanges.some((c) => c.applicationNo === p.application_no));
-    const changes: RunChanges = { caseChanges, others: others.length, othersNew: others.filter((o) => o.isNew).length };
+    const changes: RunChanges = {
+      caseChanges,
+      others: others.length,
+      othersNew: others.filter((o) => o.isNew).length,
+      server,
+    };
     const { error: saveError } = await supabase.from('portal_sync_runs').update({ ...done, changes }).eq('id', runId);
     if (saveError) {
       // changes 列がまだ無い（DB の変更前）ときも、成功の記録だけは残す

@@ -3,7 +3,8 @@
  * 間があいていれば、まだ終わっていない会社を 1 社だけ同期する。
  * ポータルは短い時間に何度もログインすると受け付けなくなる（4〜5 社続けると止められ、
  * 10 分ほどあけると戻る。2026-11-15〜18 の記録から）ので、会社と会社のあいだを 6 分あけ、
- * 断られたら 15 分休む。
+ * 断られたら 10 分休む。
+ * ただし 11/21・22 は休んでも失敗が続いたので、こちらのサーバーの具合も疑っている（hygiene.ts）。
  * 進み具合は portal_sync_runs（trigger = 'cron'）から読み、全社が終わったら
  * 社内用グループに 1 通だけまとめを送る（LINE の無料枠を使いすぎないため）。
  */
@@ -22,6 +23,8 @@ export type RunChanges = {
   /** 案件に紐づいていない変化の数と、そのうち初めて見た案件の数 */
   others: number;
   othersNew: number;
+  /** 起動したときのサーバーの様子（失敗した回と比べる調査用） */
+  server?: string;
 };
 
 export type CronRun = {
@@ -34,8 +37,8 @@ export type CronRun = {
 
 export type VendorLite = { id: string; name: string };
 
-/** 1 社につき何回まで試すか（1 回目の失敗は、ほかの会社が終わったあともう一度） */
-export const MAX_ATTEMPTS = 2;
+/** 1 社につき何回まで試すか（失敗したら、ほかの会社が終わったあともう一度） */
+export const MAX_ATTEMPTS = 3;
 /** 毎朝の自動同期を始める時刻（日本時間）。pg_cron の時刻と合わせる */
 export const WINDOW_START_HOUR = 4;
 /** 始めてから何分たったら、残りがあってもまとめを送るか（07:55） */
@@ -43,7 +46,7 @@ export const REPORT_DEADLINE_MIN = 235;
 /** 自動同期で、ひとつ前の同期（手で押したものも含む）を始めてから次を始めるまで、何分あけるか */
 export const CRON_GAP_MIN = 6;
 /** ポータルに断られたら、何分休むか */
-export const COOLDOWN_MIN = 15;
+export const COOLDOWN_MIN = 10;
 /** 手で押す同期で、ひとつ前の同期を始めてから何分あけるか */
 export const MANUAL_GAP_MIN = 3;
 
