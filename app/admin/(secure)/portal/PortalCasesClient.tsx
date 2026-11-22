@@ -135,9 +135,10 @@ export function PortalCasesClient({
                       ) : v.lastRun.status === 'running' ? (
                         <>同期中（{formatJpDate(v.lastRun.started_at)} 開始）</>
                       ) : (
-                        <span className="text-accent inline-flex items-center gap-1">
+                        <span className="text-accent inline-flex items-center gap-1" title={v.lastRun.error ?? undefined}>
                           <AlertTriangle className="w-3 h-3" />
-                          前回失敗: {v.lastRun.error ?? '原因不明'}
+                          {/* 2 行目以降は調査用の診断なので、画面には 1 行目だけ出す（マウスを乗せると全部） */}
+                          前回失敗: {v.lastRun.error?.split('\n')[0] ?? '原因不明'}
                         </span>
                       )
                     ) : (

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { launchBrowser } from './browser';
+import { describeServer, prepareServer } from './hygiene';
 import { normalizeApplicationNo } from './normalize';
 import { parsePortalDetail, type PortalDetail } from './detail';
 
@@ -508,11 +509,15 @@ export async function scrapePortalCases(
   password: string,
   options: ScrapeOptions = {},
 ): Promise<ScrapeResult> {
+  // 前回の残りのブラウザを止めてから起動する。様子は失敗したときの記録に付ける
+  const server = await prepareServer();
+  const diag = `
+${describeServer(server)}`;
   let browser;
   try {
     browser = await launchBrowser();
   } catch (e) {
-    throw new PortalError(`ブラウザを起動できません: ${(e as Error).message}`, 'browser');
+    throw new PortalError(`ブラウザを起動できません: ${(e as Error).message}${diag}`, 'browser');
   }
   // 時間を過ぎたらブラウザを閉じる。動いている操作はすべてすぐ失敗して、下の catch に来る
   let timedOut = false;
@@ -610,8 +615,10 @@ export async function scrapePortalCases(
   } catch (e) {
     if (timedOut) {
       const sec = Math.round((options.timeBudgetMs ?? SCRAPE_TIME_BUDGET_MS) / 1000);
-      throw new PortalError(`${sec}秒たっても終わらないのでやめました（ポータルの応答が遅い）`, 'timeout');
+      throw new PortalError(`${sec}秒たっても終わらないのでやめました（ポータルの応答が遅い）${diag}`, 'timeout');
     }
+    if (e instanceof PortalError) throw new PortalError(`${e.message}${diag}`, e.stage);
+    if (e instanceof Error) e.message = `${e.message}${diag}`;
     throw e;
   } finally {
     clearTimeout(timer);
