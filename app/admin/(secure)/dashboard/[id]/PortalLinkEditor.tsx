@@ -65,7 +65,7 @@ export function PortalLinkEditor({
           ポータル連携
           <span className="ml-1 text-mute font-normal">
             {matched
-              ? '（紐付け済み・状態は毎朝自動で更新）'
+              ? '（紐付け済み・状態は1日2回 自動で更新）'
               : '（未連携: 交付申請番号を入れるか、下の候補を押すと紐付きます）'}
           </span>
         </div>
@@ -155,7 +155,7 @@ function PortalDetailView({ raw }: { raw: unknown }) {
   if (!d) {
     return (
       <div className="text-[11px] text-mute">
-        ツール・補助金申請額は、次回のポータル同期で読み取ります（毎朝4時〜8時、またはポータル案件の画面の「今すぐ同期」）。
+        ツール・補助金申請額は、次回のポータル同期で読み取ります（朝4時〜と昼13時〜の1日2回、またはポータル案件の画面の「今すぐ同期」）。
       </div>
     );
   }

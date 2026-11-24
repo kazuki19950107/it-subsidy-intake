@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDailyReport,
   cronWaitMinutes,
-  dailyWindowStart,
+  currentWindow,
   isPortalRefusal,
-  jstDay,
   planDaily,
   shortError,
   type CronRun,
@@ -25,15 +24,28 @@ const run = (id: string, status: CronRun['status'], extra: Partial<CronRun> = {}
   ...extra,
 });
 
-describe('dailyWindowStart', () => {
-  it('04:00 より後なら今日の 04:00（日本時間）', () => {
-    const s = dailyWindowStart(new Date('2026-11-15T21:30:00Z')); // 11/16 06:30 JST
-    expect(s.toISOString()).toBe('2026-11-15T19:00:00.000Z');
-    expect(jstDay(s)).toBe('2026-11-16');
+describe('currentWindow', () => {
+  const w = (iso: string) => currentWindow(new Date(iso));
+  it('朝は 04:00 から。まとめは 08:00', () => {
+    const x = w('2026-11-24T21:30:00Z')!; // 11/25 06:30 JST
+    expect(x.slot).toBe('am');
+    expect(x.day).toBe('2026-11-25');
+    expect(x.start.toISOString()).toBe('2026-11-24T19:00:00.000Z');
+    expect(x.reportAt.toISOString()).toBe('2026-11-24T23:00:00.000Z');
   });
-  it('04:00 より前なら前の日の 04:00', () => {
-    const s = dailyWindowStart(new Date('2026-11-15T18:00:00Z')); // 11/16 03:00 JST
-    expect(s.toISOString()).toBe('2026-11-14T19:00:00.000Z');
+  it('昼は 13:00 から。まとめは 17:00', () => {
+    const x = w('2026-11-25T05:00:00Z')!; // 11/25 14:00 JST
+    expect(x.slot).toBe('pm');
+    expect(x.reportAt.toISOString()).toBe('2026-11-25T08:00:00.000Z');
+  });
+  it('まとめの時刻から 1 時間までは、その時間帯に入る', () => {
+    expect(w('2026-11-24T23:30:00Z')!.slot).toBe('am'); // 08:30 JST
+    expect(w('2026-11-25T08:58:00Z')!.slot).toBe('pm'); // 17:58 JST
+  });
+  it('それ以外の時刻は何もしない', () => {
+    expect(w('2026-11-25T01:00:00Z')).toBeNull(); // 10:00 JST
+    expect(w('2026-11-25T18:00:00Z')).toBeNull(); // 03:00 JST
+    expect(w('2026-11-25T12:00:00Z')).toBeNull(); // 21:00 JST
   });
 });
 
@@ -95,8 +107,8 @@ describe('planDaily', () => {
 describe('buildDailyReport', () => {
   it('変化が無い日も、全社取れたことを送る', () => {
     const runs = vendors.map((v) => run(v.id, 'success', { changes: { caseChanges: [], others: 0, othersNew: 0 } }));
-    const text = buildDailyReport(planDaily(vendors, runs), runs, 'https://x', [], { day: '2026-11-24', total: 3 });
-    expect(text).toContain('【ポータル同期】11/24 毎朝のまとめ');
+    const text = buildDailyReport(planDaily(vendors, runs), runs, 'https://x', [], { day: '2026-11-24', label: '朝', total: 3 });
+    expect(text).toContain('【ポータル同期】11/24 朝のまとめ');
     expect(text).toContain('3社すべて取得できました');
     expect(text).toContain('■ 案件の状態が変わったもの\nありません');
     expect(text).not.toContain('紐付けていない');

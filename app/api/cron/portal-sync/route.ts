@@ -11,18 +11,17 @@ import {
 import {
   buildDailyReport,
   cronWaitMinutes,
-  dailyWindowStart,
-  jstDay,
+  currentWindow,
   planDaily,
-  REPORT_DEADLINE_MIN,
+  type SyncSlot,
   type CronRun,
 } from '@/lib/portal/report';
 import { notifyInternal } from '@/lib/line/notify';
 import { refreshGroupNames } from '@/lib/line/groups';
 import { appBaseUrl } from '@/lib/utils/appUrl';
 
-// 毎朝の自動同期。04:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれる。
-// 呼ぶのは Supabase の pg_cron（supabase/migrations/20261116000000_portal_daily_tick.sql）と、
+// 自動同期は 1 日 2 回。04:00〜08:00 と 13:00〜17:00（日本時間）に 2 分おきに呼ばれる。
+// 呼ぶのは Supabase の pg_cron（supabase/migrations/20261124000000_portal_twice_daily.sql）と、
 // 念のため Vercel Cron（vercel.json、1日1回）。Authorization: Bearer <CRON_SECRET> が必須。
 //
 // 1 回の実行は 300 秒までなので、1 回の呼び出しでは 1 社だけ同期する。
@@ -30,7 +29,7 @@ import { appBaseUrl } from '@/lib/utils/appUrl';
 // 断られたら 10 分休む（lib/portal/report.ts の cronWaitMinutes）。
 // （関数が自分自身を呼んで続ける方式は、Vercel にループとして止められる: HTTP 508）
 // ブラウザを同時に動かすと失敗するので、ほかの同期が動いていれば何もしないで終わる。
-// 全社が終わったら（または 07:55 を過ぎたら）社内用グループにまとめを 1 通だけ送る。
+// まとめは 08:00 と 17:00 ちょうどに、社内用グループへ 1 通ずつ送る。
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
@@ -55,54 +54,66 @@ async function loadCronRuns(since: Date): Promise<CronRun[]> {
   return (data ?? []) as CronRun[];
 }
 
-/** まとめを送った日を記録する。すでに送っていれば false（2通送らないため） */
-async function claimReport(day: string): Promise<boolean> {
+/** まとめを送ったことを記録する。すでに送っていれば false（2通送らないため） */
+async function claimReport(day: string, slot: SyncSlot): Promise<boolean> {
   const supabase = createServiceRoleClient();
-  const { error } = await supabase.from('portal_daily_reports').insert({ day });
+  const { error } = await supabase.from('portal_daily_reports').insert({ day, slot });
   if (!error) return true;
   if (error.code !== '23505') console.error('[portal cron] portal_daily_reports', error.message);
   return false;
 }
 
-async function reportAlreadySent(day: string): Promise<boolean> {
+async function reportAlreadySent(day: string, slot: SyncSlot): Promise<boolean> {
   const supabase = createServiceRoleClient();
-  const { data } = await supabase.from('portal_daily_reports').select('day').eq('day', day).maybeSingle();
+  const { data } = await supabase
+    .from('portal_daily_reports')
+    .select('day')
+    .eq('day', day)
+    .eq('slot', slot)
+    .maybeSingle();
   return !!data;
 }
 
 async function tick(): Promise<void> {
   await cleanupStaleRuns();
   const now = new Date();
-  const since = dailyWindowStart(now);
-  const day = jstDay(since);
-  if (await reportAlreadySent(day)) return;
+  // 朝（04:00〜、08:00 にまとめ）か昼（13:00〜、17:00 にまとめ）の時間帯だけ動く
+  const win = currentWindow(now);
+  if (!win) return;
+  const { day, slot } = win;
+  if (await reportAlreadySent(day, slot)) return;
 
   const vendors = await listSyncableVendors();
-  let runs = await loadCronRuns(since);
-  if (runs.length === 0) {
-    // その日の最初の 1 回だけ、LINE グループ名も取り直す
+  const runs = await loadCronRuns(win.start);
+  if (runs.length === 0 && slot === 'am') {
+    // 朝の最初の 1 回だけ、LINE グループ名も取り直す
     await refreshGroupNames().catch((e) => console.error('[portal cron] group names', (e as Error).message));
   }
   const latest = await latestRunsByVendor();
   const lastStarted = Object.fromEntries(Object.entries(latest).map(([id, r]) => [id, r.started_at]));
-  let plan = planDaily(vendors, runs, lastStarted);
+  const plan = planDaily(vendors, runs, lastStarted);
 
-  const sendReport = async (notReached = plan.pending) => {
-    if (!(await claimReport(day))) return;
+  // まとめは毎日同じ時刻に送る。早く終わっても、その時刻まで待つ
+  if (now >= win.reportAt) {
+    if (!(await claimReport(day, slot))) return;
     const attempted = new Set(runs.map((r) => r.vendor_contact_id));
     const text = buildDailyReport(
       plan,
       runs,
       appBaseUrl(),
-      notReached.filter((v) => !attempted.has(v.id)),
-      { day, total: vendors.length, vendorNames: Object.fromEntries(vendors.map((v) => [v.id, v.name])) },
+      plan.pending.filter((v) => !attempted.has(v.id)),
+      {
+        day,
+        label: win.label,
+        total: vendors.length,
+        vendorNames: Object.fromEntries(vendors.map((v) => [v.id, v.name])),
+      },
     );
     await notifyInternal('portal_daily', text);
-  };
+    return;
+  }
 
-  if (plan.pending.length === 0) return sendReport([]);
-  if (now.getTime() - since.getTime() > REPORT_DEADLINE_MIN * 60_000) return sendReport();
-
+  if (plan.pending.length === 0) return;
   // 前の同期から間があいていなければ、次の呼び出し（2 分後）まで待つ
   if (cronWaitMinutes(await latestRun(), now) > 0) return;
 
@@ -115,19 +126,15 @@ async function tick(): Promise<void> {
     // それ以外の失敗は portal_sync_runs に残っていて、あとでもう一度試す
     failed = true;
   }
-
-  runs = await loadCronRuns(since);
-  plan = planDaily(vendors, runs, lastStarted);
-  if (plan.pending.length === 0) await sendReport([]);
-
-  if (failed) recycleServer();
+  // 朝だけ、失敗したらサーバーを入れ替える（昼間は管理画面を使っている人を巻き込むため、しない）
+  if (failed && slot === 'am') recycleServer();
 }
 
 /**
  * 失敗したあとは、このサーバーを終わらせて、次の呼び出しを新しいサーバーで動かす。
  * Vercel は同じサーバーを使い回すので、ブラウザの残りなどで具合が悪くなったサーバーで
  * 失敗が続いていた（2026-11-21/22）。記録はすべて書き終えたあとなので、失うものは無い。
- * 夜明け前の自動同期のときだけ行う（昼間に終わらせると、ほかの画面の表示を巻き込むため）。
+ * 朝の自動同期のときだけ行う（昼間に終わらせると、ほかの画面の表示を巻き込むため）。
  */
 function recycleServer() {
   if (!process.env.VERCEL) return;

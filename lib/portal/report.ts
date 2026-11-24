@@ -1,12 +1,13 @@
 /**
- * 毎朝の自動同期。04:00〜08:00（日本時間）のあいだ 2 分おきに呼ばれ、
+ * 自動同期は 1 日 2 回。朝は 04:00〜、昼は 13:00〜（日本時間）2 分おきに呼ばれ、
  * 間があいていれば、まだ終わっていない会社を 1 社だけ同期する。
+ * まとめは毎日同じ時刻（08:00 と 17:00）に送る。早く終わっても、その時刻まで待つ。
  * ポータルは短い時間に何度もログインすると受け付けなくなる（4〜5 社続けると止められ、
  * 10 分ほどあけると戻る。2026-11-15〜18 の記録から）ので、会社と会社のあいだを 6 分あけ、
  * 断られたら 10 分休む。
  * ただし 11/21・22 は休んでも失敗が続いたので、こちらのサーバーの具合も疑っている（hygiene.ts）。
- * 進み具合は portal_sync_runs（trigger = 'cron'）から読み、全社が終わったら
- * 社内用グループに 1 通だけまとめを送る（LINE の無料枠を使いすぎないため）。
+ * 進み具合は portal_sync_runs（trigger = 'cron'）から読み、まとめの時刻に
+ * 社内用グループに 1 通だけ送る（LINE の無料枠を使いすぎないため）。
  */
 
 export type CronCaseChange = {
@@ -50,10 +51,18 @@ export type VendorLite = { id: string; name: string };
 
 /** 1 社につき何回まで試すか（失敗したら、ほかの会社が終わったあともう一度） */
 export const MAX_ATTEMPTS = 3;
-/** 毎朝の自動同期を始める時刻（日本時間）。pg_cron の時刻と合わせる */
-export const WINDOW_START_HOUR = 4;
-/** 始めてから何分たったら、残りがあってもまとめを送るか（07:55） */
-export const REPORT_DEADLINE_MIN = 235;
+/**
+ * 1 日 2 回の同期の時間帯（日本時間の時）。pg_cron の時刻
+ * （supabase/migrations/20261124000000_portal_twice_daily.sql）と合わせる。
+ * start から同期を始め、report の時刻ちょうどにまとめを送る。
+ */
+export const SYNC_WINDOWS = [
+  { slot: 'am', start: 4, report: 8, label: '朝' },
+  { slot: 'pm', start: 13, report: 17, label: '夕方' },
+] as const;
+export type SyncSlot = (typeof SYNC_WINDOWS)[number]['slot'];
+/** まとめの時刻を過ぎても、この分数のあいだは送り直しを試す（呼び出しが抜けたときのため） */
+const REPORT_GRACE_MIN = 60;
 /** 自動同期で、ひとつ前の同期（手で押したものも含む）を始めてから次を始めるまで、何分あけるか */
 export const CRON_GAP_MIN = 6;
 /** ポータルに断られたら、何分休むか */
@@ -63,11 +72,28 @@ export const MANUAL_GAP_MIN = 3;
 
 const JST_OFFSET_MS = 9 * 3600_000;
 
-/** いちばん近い過去の 04:00（日本時間）。この時刻より後の自動同期を「今日の分」とする */
-export function dailyWindowStart(now: Date): Date {
+export type SyncWindow = {
+  slot: SyncSlot;
+  label: string;
+  /** 日本時間の日付（YYYY-MM-DD） */
+  day: string;
+  start: Date;
+  reportAt: Date;
+};
+
+/** 今の時刻が入っている同期の時間帯（まとめの時刻から 60 分までを含む）。どれにも入らなければ null */
+export function currentWindow(now: Date): SyncWindow | null {
   const jst = new Date(now.getTime() + JST_OFFSET_MS);
-  const start = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate(), WINDOW_START_HOUR) - JST_OFFSET_MS;
-  return new Date(start <= now.getTime() ? start : start - 86400_000);
+  const at = (h: number) =>
+    new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate(), h) - JST_OFFSET_MS);
+  for (const w of SYNC_WINDOWS) {
+    const start = at(w.start);
+    const reportAt = at(w.report);
+    if (now >= start && now.getTime() < reportAt.getTime() + REPORT_GRACE_MIN * 60_000) {
+      return { slot: w.slot, label: w.label, day: jstDay(start), start, reportAt };
+    }
+  }
+  return null;
 }
 
 /** 日本時間の日付（YYYY-MM-DD） */
@@ -142,6 +168,8 @@ export function shortError(message: string, max = 100): string {
 export type ReportContext = {
   /** 日本時間の日付（YYYY-MM-DD） */
   day?: string;
+  /** 「朝」「夕方」 */
+  label?: string;
   /** 同期する会社の数 */
   total?: number;
   /** ベンダーの id → 名前（どのベンダーの申請かを出すため） */
@@ -158,7 +186,7 @@ function changeText(from: string | null, to: string | null, isNew = false): stri
 
 /**
  * 社内用グループに送る 1 通。変化が無い日も、全社を取れたことが分かるように送る
- * （毎朝 1 通なので、LINE の無料枠 200 通/月のうち 30 通ほど）。
+ * （1 日 2 通なので、LINE の無料枠 200 通/月のうち 60 通ほど）。
  */
 export function buildDailyReport(
   plan: DailyPlan,
@@ -179,7 +207,7 @@ export function buildDailyReport(
   const unreached = notReached.filter((v) => !failed.some((f) => f.vendor === v.name));
 
   const date = ctx.day ? `${Number(ctx.day.slice(5, 7))}/${Number(ctx.day.slice(8, 10))} ` : '';
-  const lines = [`【ポータル同期】${date}毎朝のまとめ`];
+  const lines = [`【ポータル同期】${date}${ctx.label ?? ''}のまとめ`];
   const total = ctx.total ?? plan.succeeded + failed.length + unreached.length;
   lines.push(
     failed.length === 0 && unreached.length === 0
