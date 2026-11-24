@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useSavedState } from '@/lib/hooks/useSavedState';
 import Link from 'next/link';
-import { Search, X, AlertTriangle, KeyRound } from 'lucide-react';
+import { Search, X, AlertTriangle, KeyRound, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -96,16 +96,49 @@ export function PortalCasesClient({
     });
   }, [cases, q, status, year, vendorId, linkedOnly]);
   const { sorted, sort, toggle } = useTableSort('portal', filtered, COLUMNS, { firstDir: { updated: 'desc', year: 'desc' } });
+  const [vendorsOpen, setVendorsOpen] = useSavedState('portal.vendorsOpen', false);
+  // 失敗した・同期中・まだ同期していない会社は、たたんでいても出す（押す必要があるため）
+  const needsAttention = vendors.filter((v) => !v.lastRun || v.lastRun.status !== 'success');
+  const vendorSummary = useMemo(() => {
+    const failed = vendors.filter((v) => v.lastRun?.status === 'error').length;
+    const running = vendors.filter((v) => v.lastRun?.status === 'running').length;
+    const never = vendors.filter((v) => !v.lastRun).length;
+    const okDates = vendors
+      .filter((v) => v.lastRun?.status === 'success')
+      .map((v) => v.lastRun!.finished_at ?? v.lastRun!.started_at)
+      .sort();
+    const last = okDates.length > 0 ? `（最終 ${formatJpDate(okDates[okDates.length - 1])}）` : '';
+    if (failed + running + never === 0) return `すべて取得できています${last}`;
+    return [
+      failed > 0 ? `失敗 ${failed}社` : null,
+      running > 0 ? `同期中 ${running}社` : null,
+      never > 0 ? `未同期 ${never}社` : null,
+      `取得済み ${vendors.length - failed - running - never}社${last}`,
+    ]
+      .filter(Boolean)
+      .join('・');
+  }, [vendors]);
   const head = (key: string, label: string) => <SortButton label={label} sortKey={key} sort={sort} onSort={toggle} />;
 
   return (
     <div className="space-y-4">
-      {/* 同期コントロール */}
+      {/* 同期コントロール。ふだんはたたみ、失敗・同期中の会社だけは常に出す */}
       <div className="bg-white rounded-md border border-rule p-3 space-y-2">
-        <div className="text-xs font-semibold text-charcoal flex items-center gap-1">
-          <KeyRound className="w-3.5 h-3.5" />
-          ポータルに接続できるベンダー
-        </div>
+        <button
+          type="button"
+          onClick={() => setVendorsOpen((o) => !o)}
+          aria-expanded={vendorsOpen}
+          className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-left"
+        >
+          <span className="text-xs font-semibold text-charcoal flex items-center gap-1">
+            <KeyRound className="w-3.5 h-3.5" />
+            ポータルに接続できるベンダー（{vendors.length}社）
+          </span>
+          <span className="text-xs text-mute">{vendorSummary}</span>
+          <ChevronDown
+            className={`w-4 h-4 text-mute ml-auto transition-transform ${vendorsOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
         {vendors.length === 0 ? (
           <p className="text-xs text-mute">
             ログインIDとパスワードが登録されたベンダーがありません。
@@ -115,41 +148,18 @@ export function PortalCasesClient({
             で登録してください。
           </p>
         ) : (
-          <ul className="divide-y divide-rule/60">
-            {vendors.map((v) => (
-              <li key={v.id} className="py-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{v.name}</div>
-                  <div className="text-xs text-mute">
-                    {v.lastRun ? (
-                      v.lastRun.status === 'success' ? (
-                        <>
-                          前回 {formatJpDate(v.lastRun.finished_at ?? v.lastRun.started_at)} に {v.lastRun.rows_count ?? 0}件取得
-                          {v.lastRun.error && (
-                            <span className="text-warn inline-flex items-center gap-1 ml-2">
-                              <AlertTriangle className="w-3 h-3" />
-                              {v.lastRun.error}
-                            </span>
-                          )}
-                        </>
-                      ) : v.lastRun.status === 'running' ? (
-                        <>同期中（{formatJpDate(v.lastRun.started_at)} 開始）</>
-                      ) : (
-                        <span className="text-accent inline-flex items-center gap-1" title={v.lastRun.error ?? undefined}>
-                          <AlertTriangle className="w-3 h-3" />
-                          {/* 2 行目以降は調査用の診断なので、画面には 1 行目だけ出す（マウスを乗せると全部） */}
-                          前回失敗: {v.lastRun.error?.split('\n')[0] ?? '原因不明'}
-                        </span>
-                      )
-                    ) : (
-                      'まだ同期していません'
-                    )}
-                  </div>
-                </div>
-                <PortalSyncButton vendorId={v.id} vendorName={v.name} label="今すぐ同期" />
-              </li>
-            ))}
-          </ul>
+          (vendorsOpen || needsAttention.length > 0) && (
+            <ul className="divide-y divide-rule/60">
+              {(vendorsOpen ? vendors : needsAttention).map((v) => (
+                <VendorRow key={v.id} v={v} />
+              ))}
+            </ul>
+          )
+        )}
+        {!vendorsOpen && needsAttention.length > 0 && (
+          <button type="button" onClick={() => setVendorsOpen(true)} className="text-xs text-teal hover:underline">
+            ほかの {vendors.length - needsAttention.length}社も表示
+          </button>
         )}
       </div>
 
@@ -335,5 +345,42 @@ export function PortalCasesClient({
         )}
       </div>
     </div>
+  );
+}
+
+/** ベンダー 1 社分の行（前回の結果と「今すぐ同期」） */
+function VendorRow({ v }: { v: VendorSummary }) {
+  return (
+    <li className="py-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{v.name}</div>
+        <div className="text-xs text-mute">
+          {v.lastRun ? (
+            v.lastRun.status === 'success' ? (
+              <>
+                前回 {formatJpDate(v.lastRun.finished_at ?? v.lastRun.started_at)} に {v.lastRun.rows_count ?? 0}件取得
+                {v.lastRun.error && (
+                  <span className="text-warn inline-flex items-center gap-1 ml-2">
+                    <AlertTriangle className="w-3 h-3" />
+                    {v.lastRun.error}
+                  </span>
+                )}
+              </>
+            ) : v.lastRun.status === 'running' ? (
+              <>同期中（{formatJpDate(v.lastRun.started_at)} 開始）</>
+            ) : (
+              <span className="text-accent inline-flex items-center gap-1" title={v.lastRun.error ?? undefined}>
+                <AlertTriangle className="w-3 h-3" />
+                {/* 2 行目以降は調査用の診断なので、画面には 1 行目だけ出す（マウスを乗せると全部） */}
+                前回失敗: {v.lastRun.error?.split('\n')[0] ?? '原因不明'}
+              </span>
+            )
+          ) : (
+            'まだ同期していません'
+          )}
+        </div>
+      </div>
+      <PortalSyncButton vendorId={v.id} vendorName={v.name} label="今すぐ同期" />
+    </li>
   );
 }
