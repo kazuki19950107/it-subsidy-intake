@@ -93,9 +93,40 @@ describe('planDaily', () => {
 });
 
 describe('buildDailyReport', () => {
-  it('伝えることが無ければ送らない', () => {
+  it('変化が無い日も、全社取れたことを送る', () => {
     const runs = vendors.map((v) => run(v.id, 'success', { changes: { caseChanges: [], others: 0, othersNew: 0 } }));
-    expect(buildDailyReport(planDaily(vendors, runs), runs, 'https://x')).toBeNull();
+    const text = buildDailyReport(planDaily(vendors, runs), runs, 'https://x', [], { day: '2026-11-24', total: 3 });
+    expect(text).toContain('【ポータル同期】11/24 毎朝のまとめ');
+    expect(text).toContain('3社すべて取得できました');
+    expect(text).toContain('■ 案件の状態が変わったもの\nありません');
+    expect(text).not.toContain('紐付けていない');
+  });
+
+  it('紐付いていない申請も、名前とベンダーと状態で出す', () => {
+    const runs = [
+      run('a', 'success', {
+        changes: {
+          caseChanges: [],
+          others: 2,
+          othersNew: 1,
+          otherList: [
+            { applicationNo: 'KSN06-9', applicantName: '株式会社サンプル', from: null, to: '申請中', isNew: true },
+            { applicationNo: 'KSN06-8', applicantName: '有限会社テスト', from: '審査中', to: '採択', isNew: false },
+          ],
+        },
+      }),
+    ];
+    const text = buildDailyReport(planDaily([vendors[0]], runs), runs, '', [], { vendorNames: { a: 'A社' } });
+    expect(text).toContain('■ まだ案件に紐付けていない申請の変化');
+    expect(text).toContain('・株式会社サンプル（A社）\n　新しく出てきました（状態: 申請中）');
+    expect(text).toContain('・有限会社テスト（A社）\n　審査中 → 採択');
+    expect(text).not.toContain('ほか');
+  });
+
+  it('古い記録（名前の一覧が無い）は件数だけ出す', () => {
+    const runs = [run('a', 'success', { changes: { caseChanges: [], others: 7, othersNew: 0 } })];
+    const text = buildDailyReport(planDaily([vendors[0]], runs), runs, '');
+    expect(text).toContain('ほか 7件（画面で確認できます）');
   });
 
   it('変化・失敗・回りきれなかった会社を 1 通にまとめる', () => {
@@ -103,18 +134,19 @@ describe('buildDailyReport', () => {
       run('a', 'success', {
         changes: {
           caseChanges: [{ applicationId: '1', companyName: 'MEM社', applicationNo: 'KSN06-1', from: '交付決定', to: '実績報告済' }],
-          others: 2,
-          othersNew: 1,
+          others: 0,
+          othersNew: 0,
         },
       }),
       run('b', 'error'),
       run('b', 'error'),
+      run('b', 'error'),
     ];
     const plan = planDaily(vendors, runs);
-    const text = buildDailyReport(plan, runs, 'https://x', [vendors[2]])!;
-    expect(text).toContain('MEM社: 交付決定 → 実績報告済');
-    expect(text).toContain('案件に紐づいていない変化: 2件（新規 1件）');
-    expect(text).toContain('取得に失敗した会社: 1社');
+    const text = buildDailyReport(plan, runs, 'https://x', [vendors[2]], { total: 3 });
+    expect(text).toContain('3社のうち 1社 取得できました');
+    expect(text).toContain('・MEM社\n　交付決定 → 実績報告済');
+    expect(text).toContain('■ 取得に失敗した会社: 1社');
     expect(text).toContain('B社: [login]');
     expect(text).toContain('時間内に回りきれなかった会社: C社');
     expect(text).toContain('https://x/admin/portal');

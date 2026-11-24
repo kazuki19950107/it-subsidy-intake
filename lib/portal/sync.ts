@@ -301,6 +301,13 @@ export async function syncVendorPortal(
       caseChanges,
       others: others.length,
       othersNew: others.filter((o) => o.isNew).length,
+      otherList: others.slice(0, 50).map((o) => ({
+        applicationNo: o.application_no,
+        applicantName: o.applicant_name,
+        from: o.from,
+        to: o.to,
+        isNew: o.isNew,
+      })),
       server,
     };
     const { error: saveError } = await supabase.from('portal_sync_runs').update({ ...done, changes }).eq('id', runId);

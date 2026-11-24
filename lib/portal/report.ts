@@ -17,12 +17,23 @@ export type CronCaseChange = {
   to: string | null;
 };
 
+/** 案件に紐付いていない申請の、状態の変化 */
+export type OtherChange = {
+  applicationNo: string;
+  applicantName: string | null;
+  from: string | null;
+  to: string | null;
+  isNew: boolean;
+};
+
 /** portal_sync_runs.changes に残す、その回の変化 */
 export type RunChanges = {
   caseChanges: CronCaseChange[];
   /** 案件に紐づいていない変化の数と、そのうち初めて見た案件の数 */
   others: number;
   othersNew: number;
+  /** 案件に紐付いていない申請の変化（まとめに名前と状態を出すため。古い記録には無い） */
+  otherList?: OtherChange[];
   /** 起動したときのサーバーの様子（失敗した回と比べる調査用） */
   server?: string;
 };
@@ -128,40 +139,79 @@ export function shortError(message: string, max = 100): string {
   return first.length > max ? `${first.slice(0, max)}…` : first;
 }
 
-/** 社内用グループに送る 1 通。伝えることが無ければ null */
+export type ReportContext = {
+  /** 日本時間の日付（YYYY-MM-DD） */
+  day?: string;
+  /** 同期する会社の数 */
+  total?: number;
+  /** ベンダーの id → 名前（どのベンダーの申請かを出すため） */
+  vendorNames?: Record<string, string>;
+};
+
+const MAX_LINES = 30;
+
+/** 状態の変化を 1 行で（「申請中 → 採択」/ 新しく出てきたもの） */
+function changeText(from: string | null, to: string | null, isNew = false): string {
+  if (isNew) return `新しく出てきました（状態: ${to ?? 'なし'}）`;
+  return `${from ?? '（なし）'} → ${to ?? '（なし）'}`;
+}
+
+/**
+ * 社内用グループに送る 1 通。変化が無い日も、全社を取れたことが分かるように送る
+ * （毎朝 1 通なので、LINE の無料枠 200 通/月のうち 30 通ほど）。
+ */
 export function buildDailyReport(
   plan: DailyPlan,
   runs: CronRun[],
   appUrl: string,
   /** 時間切れで回りきれなかった会社 */
   notReached: VendorLite[] = [],
-): string | null {
+  ctx: ReportContext = {},
+): string {
   const ok = runs.filter((r) => r.status === 'success' && r.changes);
   const caseChanges = ok.flatMap((r) => r.changes!.caseChanges ?? []);
   const others = ok.reduce((n, r) => n + (r.changes!.others ?? 0), 0);
-  const othersNew = ok.reduce((n, r) => n + (r.changes!.othersNew ?? 0), 0);
+  const otherList = ok.flatMap((r) =>
+    (r.changes!.otherList ?? []).map((o) => ({ ...o, vendor: ctx.vendorNames?.[r.vendor_contact_id] ?? null })),
+  );
   const failed = plan.failed;
-
-  if (caseChanges.length === 0 && others === 0 && failed.length === 0 && notReached.length === 0) return null;
-  const lines = ['【ポータル同期】毎朝のまとめ'];
-  if (caseChanges.length > 0) {
-    lines.push('', '状態が変わった案件');
-    for (const c of caseChanges.slice(0, 30)) {
-      lines.push(`・${c.companyName ?? c.applicationNo}: ${c.from ?? '（なし）'} → ${c.to ?? '（なし）'}`);
-    }
-    if (caseChanges.length > 30) lines.push(`ほか ${caseChanges.length - 30}件`);
-  }
-  if (others > 0) lines.push('', `案件に紐づいていない変化: ${others}件（新規 ${othersNew}件）`);
-  if (failed.length > 0) {
-    lines.push('', `取得に失敗した会社: ${failed.length}社`);
-    for (const f of failed.slice(0, 20)) lines.push(`・${f.vendor}: ${shortError(f.message)}`);
-    if (failed.length > 20) lines.push(`ほか ${failed.length - 20}社`);
-    lines.push('ログイン情報の変更やポータルの画面変更の可能性があります。');
-  }
   // 1 回目で失敗した会社は「失敗」の方に出ているので除く
   const unreached = notReached.filter((v) => !failed.some((f) => f.vendor === v.name));
+
+  const date = ctx.day ? `${Number(ctx.day.slice(5, 7))}/${Number(ctx.day.slice(8, 10))} ` : '';
+  const lines = [`【ポータル同期】${date}毎朝のまとめ`];
+  const total = ctx.total ?? plan.succeeded + failed.length + unreached.length;
+  lines.push(
+    failed.length === 0 && unreached.length === 0
+      ? `${total}社すべて取得できました`
+      : `${total}社のうち ${plan.succeeded}社 取得できました`,
+  );
+
+  lines.push('', '■ 案件の状態が変わったもの');
+  if (caseChanges.length === 0) lines.push('ありません');
+  for (const c of caseChanges.slice(0, MAX_LINES)) {
+    lines.push(`・${c.companyName ?? c.applicationNo}`, `　${changeText(c.from, c.to)}`);
+  }
+  if (caseChanges.length > MAX_LINES) lines.push(`ほか ${caseChanges.length - MAX_LINES}件`);
+
+  if (others > 0) {
+    lines.push('', '■ まだ案件に紐付けていない申請の変化');
+    for (const o of otherList.slice(0, MAX_LINES)) {
+      const via = o.vendor ? `（${o.vendor}）` : '';
+      lines.push(`・${o.applicantName ?? o.applicationNo}${via}`, `　${changeText(o.from, o.to, o.isNew)}`);
+    }
+    const rest = others - Math.min(otherList.length, MAX_LINES);
+    if (rest > 0) lines.push(`ほか ${rest}件（画面で確認できます）`);
+  }
+
+  if (failed.length > 0) {
+    lines.push('', `■ 取得に失敗した会社: ${failed.length}社`);
+    for (const f of failed.slice(0, 20)) lines.push(`・${f.vendor}: ${shortError(f.message)}`);
+    if (failed.length > 20) lines.push(`ほか ${failed.length - 20}社`);
+    lines.push('「今すぐ同期」で取り直せます。同じ会社が毎日失敗するなら、ログインID・パスワードを確認してください。');
+  }
   if (unreached.length > 0) {
-    lines.push('', `時間内に回りきれなかった会社: ${unreached.map((v) => v.name).join('、')}（「今すぐ同期」で）`);
+    lines.push('', `■ 時間内に回りきれなかった会社: ${unreached.map((v) => v.name).join('、')}（「今すぐ同期」で）`);
   }
   if (appUrl) lines.push('', `${appUrl}/admin/portal`);
   return lines.join('\n');

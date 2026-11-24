@@ -95,8 +95,9 @@ async function tick(): Promise<void> {
       runs,
       appBaseUrl(),
       notReached.filter((v) => !attempted.has(v.id)),
+      { day, total: vendors.length, vendorNames: Object.fromEntries(vendors.map((v) => [v.id, v.name])) },
     );
-    if (text) await notifyInternal('portal_daily', text);
+    await notifyInternal('portal_daily', text);
   };
 
   if (plan.pending.length === 0) return sendReport([]);
