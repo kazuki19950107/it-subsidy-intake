@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PortalSyncAlert } from '@/components/admin/PortalSyncAlert';
 import { Download, Upload } from 'lucide-react';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { ApplicationList, type ApplicationWithProgress } from '@/components/admin/ApplicationList';
@@ -190,6 +191,7 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
+      <PortalSyncAlert />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">案件一覧</h1>

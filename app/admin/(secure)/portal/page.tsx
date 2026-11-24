@@ -1,6 +1,7 @@
 import { listPortalCases } from '@/lib/portal/queries';
 import { latestRunsByVendor, listSyncableVendors } from '@/lib/portal/sync';
 import { PortalCasesClient } from './PortalCasesClient';
+import { PortalSyncAlert } from '@/components/admin/PortalSyncAlert';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,6 +24,7 @@ export default async function PortalPage() {
 
   return (
     <div className="space-y-6">
+      <PortalSyncAlert />
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">ポータル案件</h1>
         <p className="text-sm text-mute">
